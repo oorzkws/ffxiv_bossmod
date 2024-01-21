@@ -209,6 +209,8 @@ namespace BossMod
             while (i < NumCooldownGroups)
             {
                 var nextRg = _inst->GetRecastGroupDetail(i);
+                // group is null when out of duty
+                if ((IntPtr)nextRg == IntPtr.Zero) break;
                 cooldowns[i] = nextRg->Total - nextRg->Elapsed;
                 ++i;
             }

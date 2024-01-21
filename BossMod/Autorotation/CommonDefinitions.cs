@@ -60,6 +60,7 @@ namespace BossMod
             var res = new Dictionary<ActionID, ActionDefinition>();
             (res[IDSprint] = new(0, 0, SprintCDGroup, 60, 1, 0.6f)).EffectDuration = 10;
             (res[statPotion] = new(0, 0, PotionCDGroup, 270, 1, 1.1f)).EffectDuration = 30;
+            DutyActions.Register(ref res);
             return res;
         }
 
