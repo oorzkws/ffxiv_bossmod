@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
+using FFXIVClientStructs.FFXIV.Client.Game;
 
 namespace BossMod
 {
@@ -71,17 +72,31 @@ namespace BossMod
             _queue.RemoveAll(CheckExpired);
         }
 
+        private static int GetCooldownGroup(ActionID action, ActionDefinition def)
+        {
+            // all duty actions are group 80 in sheets, but duty action 2's cd is tracked in group 81 when it is available
+            if (
+                def.CooldownGroup == CommonDefinitions.DutyActionCDGroup
+                // starts at 0
+                && ActionManager.GetDutyActionId(1) == action.ID
+            )
+                return CommonDefinitions.DutyAction2CDGroup;
+
+            return def.CooldownGroup;
+        }
+
         public void Push(ActionID action, Actor? target, Vector3 targetPos, ActionDefinition def, Func<Actor?, bool>? condition, bool simulated = false)
         {
-            bool isGCD = def.CooldownGroup == CommonDefinitions.GCDGroup;
+            int cdGroup = GetCooldownGroup(action, def);
+            bool isGCD = cdGroup == CommonDefinitions.GCDGroup || CommonDefinitions.IsGCDLike(action.ID);
             float expire = isGCD ? 1.0f : 3.0f;
-            if (_cooldowns[def.CooldownGroup] - expire > def.CooldownAtFirstCharge)
+            if (_cooldowns[cdGroup] - expire > def.CooldownAtFirstCharge)
             {
                 return;
             }
 
             var expireAt = _ws.CurrentTime.AddSeconds(expire);
-            var index = _queue.FindIndex(e => e.Definition.CooldownGroup == def.CooldownGroup);
+            var index = _queue.FindIndex(e => e.Definition.CooldownGroup == cdGroup);
             if (index < 0)
             {
                 Service.Log($"[MAO] Queueing {action} @ {target}");

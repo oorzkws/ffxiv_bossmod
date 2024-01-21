@@ -52,6 +52,8 @@ namespace BossMod
         public static int SprintCDGroup = 55;
         public static int GCDGroup = 57;
         public static int PotionCDGroup = 58;
+        public static int DutyActionCDGroup = 80;
+        public static int DutyAction2CDGroup = 81;
 
         public static Dictionary<ActionID, ActionDefinition> CommonActionData(ActionID statPotion)
         {
@@ -83,6 +85,14 @@ namespace BossMod
                 _ => 0u
             };
             return stanceSID != 0 && a.FindStatus(stanceSID) != null;
+        }
+
+        public static bool IsGCDLike(uint actionID)
+        {
+            // update when definitions are added:
+            // - SGE: Pneuma
+            // - BLU: like 20 spells (triple trident, rose of destruction, angel's whisper, ...)
+            return false;
         }
     }
 }

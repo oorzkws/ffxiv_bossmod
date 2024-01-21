@@ -47,7 +47,8 @@ namespace BossMod
     unsafe class ActionManagerEx : IDisposable
     {
         public static ActionManagerEx? Instance;
-        public const int NumCooldownGroups = 80;
+        public const int NumRealCooldownGroups = 80;
+        public const int NumCooldownGroups = 82;
 
         public float AnimationLockDelaySmoothing = 0.8f; // TODO tweak
         public float AnimationLockDelayAverage { get; private set; } = 0.1f; // smoothed delay between client request and server response
@@ -197,10 +198,19 @@ namespace BossMod
         public void GetCooldowns(float[] cooldowns)
         {
             var rg = _inst->GetRecastGroupDetail(0);
-            for (int i = 0; i < NumCooldownGroups; ++i)
+            int i = 0;
+            while (i < NumRealCooldownGroups)
             {
                 cooldowns[i] = rg->Total - rg->Elapsed;
                 ++rg;
+                ++i;
+            }
+            // duty action CDs are tracked separately
+            while (i < NumCooldownGroups)
+            {
+                var nextRg = _inst->GetRecastGroupDetail(i);
+                cooldowns[i] = nextRg->Total - nextRg->Elapsed;
+                ++i;
             }
         }
 
