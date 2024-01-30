@@ -29,7 +29,13 @@ namespace BossMod.MCH
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
         {
-            if (Autorot.PrimaryTarget == null || AutoAction < AutoActionAIFight)
+            if (AutoAction < AutoActionAIFight)
+                return new();
+
+            if (!Player.InCombat && StatusDetails(Player, 1199, Player.InstanceID).Left <= 5)
+                return MakeResult(ActionID.MakeSpell(AID.Peloton), null);
+
+            if (Autorot.PrimaryTarget == null)
                 return new();
 
             ActionID res = new();
@@ -50,7 +56,8 @@ namespace BossMod.MCH
 
         protected override void QueueAIActions() { }
 
-        public override void Dispose() {
+        public override void Dispose()
+        {
             _config.Modified -= OnConfigModified;
         }
 
