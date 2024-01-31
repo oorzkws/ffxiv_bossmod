@@ -33,13 +33,18 @@ namespace BossMod.MCH
 
         public class Strategy : CommonRotation.Strategy
         {
+            public int NumAOETargets; // 12y/90deg cone for scattergun, bioblaster, auto crossbow
+            public int NumFlamethrowerTargets; // 8y/90deg cone for a skill that nobody uses
+            public int NumChainsawTargets; // 25/4y rect
+            public int NumRicochetTargets; // 5y circle around target
+
             public void ApplyStrategyOverrides(uint[] overrides) { }
         }
 
         public static AID GetNextBestGCD(State state, Strategy strategy)
         {
             if (state.IsOverheated)
-                return AID.HeatBlast;
+                return strategy.NumAOETargets > 2 ? AID.AutoCrossbow : AID.HeatBlast;
 
             var canHotShot = state.Unlocked(AID.HotShot) && state.CD(CDGroup.HotShot) <= state.GCD;
 
@@ -50,6 +55,9 @@ namespace BossMod.MCH
 
                 if (state.Unlocked(AID.ChainSaw) && state.CD(CDGroup.ChainSaw) <= state.GCD)
                     return AID.ChainSaw;
+
+                if (strategy.NumAOETargets > 3)
+                    return AID.Scattergun;
 
                 if (state.Unlocked(AID.CleanShot) && state.ComboLastMove == AID.SlugShot)
                     return AID.CleanShot;
@@ -67,6 +75,16 @@ namespace BossMod.MCH
                 && (state.CD(CDGroup.Ricochet) > 0 || state.CD(CDGroup.GaussRound) > 0)
             )
                 return AID.Drill;
+
+            if (state.Unlocked(AID.Bioblaster) && state.CD(CDGroup.Drill) <= state.GCD && strategy.NumAOETargets > 1)
+                return AID.Bioblaster;
+
+            if (strategy.NumAOETargets > 2) {
+                if (strategy.NumFlamethrowerTargets >= 3)
+                    return AID.Flamethrower;
+
+                return AID.Scattergun;
+            }
 
             if (state.ComboLastMove == AID.SlugShot && state.Unlocked(AID.CleanShot))
                 return state.BestCleanShot;
@@ -144,11 +162,19 @@ namespace BossMod.MCH
             if (state.ReassembleLeft > 0)
                 return false;
 
+            // scattergun priority
+            if (strategy.NumAOETargets > 3 && state.Unlocked(AID.SpreadShot))
+                return true;
+
+            var atComboEnd = state.ComboLastMove == AID.CleanShot;
+
             return state.Level switch
             {
                 < 26 => state.CD(CDGroup.HotShot) <= state.GCD,
-                26 => state.ComboLastMove == AID.SlugShot,
-                _ => false
+                < 58 => state.ComboLastMove == AID.SlugShot,
+                < 76 => atComboEnd && state.CD(CDGroup.Drill) <= state.GCD,
+                < 90 => atComboEnd && state.CD(CDGroup.AirAnchor) <= state.GCD,
+                _ => atComboEnd && (state.CD(CDGroup.ChainSaw) <= state.GCD || state.CD(CDGroup.AirAnchor) <= state.GCD)
             };
         }
 

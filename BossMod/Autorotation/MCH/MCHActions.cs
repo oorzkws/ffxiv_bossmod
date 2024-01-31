@@ -32,9 +32,6 @@ namespace BossMod.MCH
             if (AutoAction < AutoActionAIFight)
                 return new();
 
-            if (!Player.InCombat && StatusDetails(Player, 1199, Player.InstanceID).Left <= 5)
-                return MakeResult(ActionID.MakeSpell(AID.Peloton), null);
-
             if (Autorot.PrimaryTarget == null)
                 return new();
 
@@ -70,6 +67,38 @@ namespace BossMod.MCH
                     .Bossmods.ActiveModule?.PlanExecution
                     ?.ActiveStrategyOverrides(Autorot.Bossmods.ActiveModule.StateMachine) ?? new uint[0]
             );
+
+            _strategy.NumAOETargets =
+                autoAction == AutoActionST || Autorot.PrimaryTarget == null
+                    ? 0
+                    : Autorot.Hints.NumPriorityTargetsInAOECone(
+                        Player.Position,
+                        12,
+                        (Autorot.PrimaryTarget.Position - Player.Position).Normalized(),
+                        45.Degrees()
+                    );
+            _strategy.NumFlamethrowerTargets =
+                autoAction == AutoActionST || Autorot.PrimaryTarget == null
+                    ? 0
+                    : Autorot.Hints.NumPriorityTargetsInAOECone(
+                        Player.Position,
+                        8,
+                        (Autorot.PrimaryTarget.Position - Player.Position).Normalized(),
+                        45.Degrees()
+                    );
+            _strategy.NumChainsawTargets =
+                Autorot.PrimaryTarget == null
+                    ? 0
+                    : Autorot.Hints.NumPriorityTargetsInAOERect(
+                        Player.Position,
+                        (Autorot.PrimaryTarget.Position - Player.Position).Normalized(),
+                        25,
+                        2
+                    );
+            _strategy.NumRicochetTargets =
+                Autorot.PrimaryTarget == null
+                    ? 0
+                    : Autorot.Hints.NumPriorityTargetsInAOECircle(Autorot.PrimaryTarget.Position, 5);
         }
 
         private void UpdatePlayerState()
