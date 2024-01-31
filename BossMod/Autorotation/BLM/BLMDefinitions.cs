@@ -113,11 +113,39 @@ namespace BossMod.BLM
         Swiftcast = 167, // applied by Swiftcast to self, next cast is instant
         Surecast = 160, // applied by Surecast to self, knockback immune
         Sleep = 3, // applied by Sleep to target
+        Sharpcast = 867, // applied by Sharpcast to self
+        Thunder4 = 1210, // applied by Thunder4 to target, dot
+        Triplecast = 1211, // applied by Triplecast to self
+        LeyLines = 737, // applied by Ley Lines to self
+        CircleOfPower = 738, // active while standing in Ley Lines
+    }
+
+    public enum Aspect : uint
+    {
+        None = 0,
+        Fire = 1,
+        Ice = 2,
+        Thunder = 3
     }
 
     public static class Definitions
     {
-        public static uint[] UnlockQuests = { 65886, 65889, 66609, 66610, 66611, 66612, 66614, 67215, 67216, 67217, 67218, 67219, 68128 };
+        public static uint[] UnlockQuests =
+        {
+            65886,
+            65889,
+            66609,
+            66610,
+            66611,
+            66612,
+            66614,
+            67215,
+            67216,
+            67217,
+            67218,
+            67219,
+            68128
+        };
 
         public static bool Unlocked(AID aid, int level, int questProgress)
         {
@@ -191,6 +219,7 @@ namespace BossMod.BLM
         }
 
         public static Dictionary<ActionID, ActionDefinition> SupportedActions;
+
         static Definitions()
         {
             SupportedActions = CommonDefinitions.CommonActionData(CommonDefinitions.IDPotionInt);
@@ -216,7 +245,7 @@ namespace BossMod.BLM
             SupportedActions.GCDCast(AID.HighBlizzard2, 25, 3.0f);
             SupportedActions.GCDCast(AID.HighFire2, 25, 3.0f);
             SupportedActions.OGCD(AID.Transpose, 0, CDGroup.Transpose, 5.0f);
-            SupportedActions.OGCD(AID.Sharpcast, 0, CDGroup.Sharpcast, 60.0f);
+            SupportedActions.OGCDWithCharges(AID.Sharpcast, 0, CDGroup.Sharpcast, 60.0f, 2);
             SupportedActions.OGCD(AID.Swiftcast, 0, CDGroup.Swiftcast, 60.0f);
             SupportedActions.OGCD(AID.Manafont, 0, CDGroup.Manafont, 180.0f);
             SupportedActions.OGCD(AID.LeyLines, 0, CDGroup.LeyLines, 120.0f);
@@ -226,10 +255,39 @@ namespace BossMod.BLM
             SupportedActions.OGCD(AID.Addle, 25, CDGroup.Addle, 90.0f);
             SupportedActions.OGCD(AID.Manaward, 0, CDGroup.Manaward, 120.0f);
             SupportedActions.OGCD(AID.Surecast, 0, CDGroup.Surecast, 120.0f);
-            SupportedActions.OGCD(AID.AetherialManipulation, 25, CDGroup.AetherialManipulation, 10.0f);
+            SupportedActions.OGCD(
+                AID.AetherialManipulation,
+                25,
+                CDGroup.AetherialManipulation,
+                10.0f
+            );
             SupportedActions.OGCD(AID.BetweenTheLines, 25, CDGroup.BetweenTheLines, 3.0f);
             SupportedActions.GCD(AID.UmbralSoul, 0);
             SupportedActions.GCDCast(AID.Sleep, 30, 2.5f);
         }
+
+        public static Aspect Aspect(this AID action) =>
+            action switch
+            {
+                AID.Fire1
+                or AID.Fire2
+                or AID.Fire3
+                or AID.Fire4
+                or AID.Flare
+                or AID.Despair
+                or AID.HighFire2
+                    => BLM.Aspect.Fire,
+                AID.Blizzard1
+                or AID.Blizzard2
+                or AID.Blizzard3
+                or AID.Blizzard4
+                or AID.Freeze
+                or AID.HighBlizzard2
+                    => BLM.Aspect.Ice,
+                AID.Thunder1 or AID.Thunder2 or AID.Thunder3 or AID.Thunder4 => BLM.Aspect.Thunder,
+                _ => BLM.Aspect.None
+            };
+
+        public static float BaseCastTime(this AID action) => SupportedActions[ActionID.MakeSpell(action)].CastTime;
     }
 }

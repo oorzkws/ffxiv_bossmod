@@ -1,7 +1,6 @@
-﻿using Dalamud.Game.ClientState.JobGauge.Types;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
+using Dalamud.Game.ClientState.JobGauge.Types;
 
 namespace BossMod.BLM
 {
@@ -9,6 +8,7 @@ namespace BossMod.BLM
     {
         public const int AutoActionST = AutoActionFirstCustom + 0;
         public const int AutoActionAOE = AutoActionFirstCustom + 1;
+        public const int AutoActionFiller = AutoActionFirstCustom + 2;
 
         private BLMConfig _config;
         private Rotation.State _state;
@@ -34,6 +34,7 @@ namespace BossMod.BLM
         }
 
         public override CommonRotation.PlayerState GetState() => _state;
+
         public override CommonRotation.Strategy GetStrategy() => _strategy;
 
         public override Targeting SelectBetterTarget(AIHints.Enemy initial)
@@ -41,9 +42,12 @@ namespace BossMod.BLM
             // TODO: multidot?..
             var bestTarget = initial;
             if (_state.Unlocked(AID.Blizzard2))
-            {
-                bestTarget = FindBetterTargetBy(initial, 25, e => NumTargetsHitByAOE(e.Actor)).Target;
-            }
+                // if multiple targets result in the same AOE count, prioritize by HP
+                bestTarget = FindBetterTargetBy(
+                    initial,
+                    25,
+                    e => NumTargetsHitByAOE(e.Actor) * 1000000 + (int)e.Actor.HP.Cur
+                ).Target;
             return new(bestTarget, bestTarget.StayAtLongRange ? 25 : 15);
         }
 
@@ -51,35 +55,72 @@ namespace BossMod.BLM
         {
             UpdatePlayerState();
             FillCommonStrategy(_strategy, CommonDefinitions.IDPotionInt);
-            if (autoAction == AutoActionAIFight)
+            _strategy.UseAOERotation =
+                Autorot.PrimaryTarget != null
+                && autoAction != AutoActionST
+                && _state.Unlocked(AID.Blizzard2)
+                && NumTargetsHitByAOE(Autorot.PrimaryTarget) >= 3;
+
+            _strategy.ApplyStrategyOverrides(
+                Autorot
+                    .Bossmods.ActiveModule?.PlanExecution
+                    ?.ActiveStrategyOverrides(Autorot.Bossmods.ActiveModule.StateMachine) ?? new uint[0]
+            );
+
+            if (autoAction == AutoActionFiller)
             {
-                _strategy.NumAOETargets = Autorot.PrimaryTarget != null ? NumTargetsHitByAOE(Autorot.PrimaryTarget) : 0;
-            }
-            else
-            {
-                _strategy.NumAOETargets = autoAction == AutoActionAOE ? 100 : 0; // TODO: consider making AI-like check
+                _strategy.LeylinesStrategy = CommonRotation.Strategy.OffensiveAbilityUse.Delay;
+                _strategy.TriplecastStrategy = CommonRotation.Strategy.OffensiveAbilityUse.Delay;
             }
         }
 
         protected override void QueueAIActions()
         {
             if (_state.Unlocked(AID.Transpose))
-                SimulateManualActionForAI(ActionID.MakeSpell(AID.Transpose), Player, !Player.InCombat && _state.ElementalLevel > 0 && _state.CurMP < 10000);
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.Transpose),
+                    Player,
+                    !Player.InCombat
+                        && (
+                            _state.ElementalLevel > 0 && _state.CurMP < 10000
+                            || _state.ElementalLevel < 0
+                                && _state.CurMP == 10000
+                                && _state.UmbralHearts == _state.MaxHearts
+                            || _state.ElementalLevel != 0 && _state.ElementalLeft < 3
+                        )
+                );
+            if (_state.Unlocked(AID.UmbralSoul))
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.UmbralSoul),
+                    Player,
+                    !Player.InCombat && _state.ElementalLevel < 0 && _state.UmbralHearts < _state.MaxHearts
+                );
             if (_state.Unlocked(AID.Manaward))
-                SimulateManualActionForAI(ActionID.MakeSpell(AID.Manaward), Player, Player.HP.Cur < Player.HP.Max * 0.8f);
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.Manaward),
+                    Player,
+                    Player.HP.Cur < Player.HP.Max * 0.8f
+                );
+            if (_state.Unlocked(AID.Sharpcast))
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.Sharpcast),
+                    Player,
+                    !Player.InCombat && _state.SharpcastLeft == 0
+                );
         }
 
         protected override NextAction CalculateAutomaticGCD()
         {
-            if (Autorot.PrimaryTarget == null || AutoAction < AutoActionAIFight)
+            if (AutoAction < AutoActionAIFight)
                 return new();
             var aid = Rotation.GetNextBestGCD(_state, _strategy);
+
             return MakeResult(aid, Autorot.PrimaryTarget);
         }
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
         {
-            if (Autorot.PrimaryTarget == null || AutoAction < AutoActionAIFight)
+            if (AutoAction < AutoActionAIFight)
                 return new();
 
             ActionID res = new();
@@ -87,6 +128,10 @@ namespace BossMod.BLM
                 res = Rotation.GetNextBestOGCD(_state, _strategy, deadline - _state.OGCDSlotLength);
             if (!res && _state.CanWeave(deadline)) // second/only ogcd slot
                 res = Rotation.GetNextBestOGCD(_state, _strategy, deadline);
+
+            if (res.ID == (uint)AID.LeyLines)
+                return new NextAction(res, null, Player.PosRot.XYZ(), ActionSource.Automatic);
+
             return MakeResult(res, Autorot.PrimaryTarget);
         }
 
@@ -106,28 +151,58 @@ namespace BossMod.BLM
                 }
             }
             _prevMP = Player.CurMP;
-            _state.TimeToManaTick = 3 - (_lastManaTick != default ? (float)(Autorot.WorldState.CurrentTime - _lastManaTick).TotalSeconds % 3 : 0);
+            _state.TimeToManaTick =
+                3
+                - (
+                    _lastManaTick != default
+                        ? (float)(Autorot.WorldState.CurrentTime - _lastManaTick).TotalSeconds % 3
+                        : 0
+                );
 
             _state.ElementalLevel = gauge.InAstralFire ? gauge.AstralFireStacks : -gauge.UmbralIceStacks;
             _state.ElementalLeft = gauge.ElementTimeRemaining * 0.001f;
+            _state.EnochianTimer = gauge.EnochianTimer * 0.001f;
+            _state.UmbralHearts = gauge.UmbralHearts;
+            _state.Polyglot = gauge.PolyglotStacks;
+            _state.Paradox = gauge.IsParadoxActive;
 
-            _state.SwiftcastLeft = StatusDetails(Player, SID.Swiftcast, Player.InstanceID).Left;
+            _state.TriplecastLeft = StatusDetails(Player, SID.Triplecast, Player.InstanceID).Left;
+            _state.SwiftcastLeft = Math.Max(
+                StatusDetails(Player, SID.Swiftcast, Player.InstanceID).Left,
+                // Lost Chainspell
+                StatusDetails(Player, 2560, Player.InstanceID).Left
+            );
+            _state.SharpcastLeft = StatusDetails(Player, SID.Sharpcast, Player.InstanceID).Left;
             _state.ThundercloudLeft = StatusDetails(Player, SID.Thundercloud, Player.InstanceID).Left;
-            _state.FirestarterLeft = StatusDetails(Player, SID.Firestarter, Player.InstanceID).Left;
+            _state.FirestarterLeft = StatusDetails(Player, SID.Firestarter, Player.InstanceID, 0).Left;
 
-            _state.TargetThunderLeft = Math.Max(StatusDetails(Autorot.PrimaryTarget, _state.ExpectedThunder3, Player.InstanceID).Left, StatusDetails(Autorot.PrimaryTarget, SID.Thunder2, Player.InstanceID).Left);
+            _state.TargetThunderLeft = Math.Max(
+                StatusDetails(Autorot.PrimaryTarget, _state.ExpectedThunder1, Player.InstanceID).Left,
+                StatusDetails(Autorot.PrimaryTarget, _state.ExpectedThunder2, Player.InstanceID).Left
+            );
+
+            _state.LeyLinesLeft = StatusDetails(Player, SID.LeyLines, Player.InstanceID).Left;
+            _state.InLeyLines = StatusDetails(Player, SID.CircleOfPower, Player.InstanceID).Left > 0;
         }
 
         private void OnConfigModified(object? sender, EventArgs args)
         {
             // placeholders
-            SupportedSpell(AID.Blizzard1).PlaceholderForAuto = _config.FullRotation ? AutoActionST : AutoActionNone;
-            SupportedSpell(AID.Blizzard2).PlaceholderForAuto = _config.FullRotation ? AutoActionAOE : AutoActionNone;
+            SupportedSpell(AID.Fire1).PlaceholderForAuto = SupportedSpell(AID.Fire4).PlaceholderForAuto =
+                _config.FullRotation ? AutoActionST : AutoActionNone;
+            SupportedSpell(AID.Fire2).PlaceholderForAuto = _config.FullRotation ? AutoActionAOE : AutoActionNone;
+            SupportedSpell(AID.Blizzard1).PlaceholderForAuto = SupportedSpell(AID.Blizzard4).PlaceholderForAuto =
+                _config.FullRotation ? AutoActionFiller : AutoActionNone;
 
             // smart targets
-            SupportedSpell(AID.AetherialManipulation).TransformTarget = _config.MouseoverFriendly ? SmartTargetFriendly : null;
+            SupportedSpell(AID.AetherialManipulation).TransformTarget = _config.SmartDash
+                ? (tar) => Autorot.SecondaryTarget ?? tar
+                : null;
+
+            _strategy.AutoRefresh = _config.AutoIceRefresh;
         }
 
-        private int NumTargetsHitByAOE(Actor primary) => Autorot.Hints.NumPriorityTargetsInAOECircle(primary.Position, 5);
+        private int NumTargetsHitByAOE(Actor primary) =>
+            Autorot.Hints.NumPriorityTargetsInAOECircle(primary.Position, 5);
     }
 }

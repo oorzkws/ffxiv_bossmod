@@ -1,7 +1,24 @@
-﻿namespace BossMod.BLM
+﻿using System;
+using System.Data;
+using System.Net.NetworkInformation;
+using System.Security.Cryptography.X509Certificates;
+using BossMod.Components;
+using BossMod.ReplayAnalysis;
+using Dalamud.Game.ClientState.Structs;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using Lumina.Excel.GeneratedSheets;
+
+namespace BossMod.BLM
 {
     public static class Rotation
     {
+        public enum Aspect
+        {
+            None = 0,
+            Ice = 1,
+            Fire = 2
+        }
+
         // full state needed for determining next action
         public class State : CommonRotation.PlayerState
         {
@@ -9,51 +26,161 @@
             public int ElementalLevel; // -3 (umbral ice 3) to +3 (astral fire 3)
             public float ElementalLeft; // 0 if elemental level is 0, otherwise buff duration, max 15
             public float SwiftcastLeft; // 0 if buff not up, max 10
+            public float TriplecastLeft; // max 15
+            public float SharpcastLeft; // max 30
             public float ThundercloudLeft;
             public float FirestarterLeft;
             public float TargetThunderLeft; // TODO: this shouldn't be here...
+            public float LeyLinesLeft; // max 30
+            public bool InLeyLines;
+            public bool Paradox;
+            public int UmbralHearts; // max 3
+            public int Polyglot; // max 2
+            public float EnochianTimer;
+            public float NextPolyglot => EnochianTimer;
+            public int MaxHearts => Unlocked(TraitID.EnhancedFreeze) ? 3 : 0;
+
+
+            public float InstantCastLeft => MathF.Max(SwiftcastLeft, TriplecastLeft);
 
             // upgrade paths
-            public AID BestThunder3 => Unlocked(AID.Thunder3) ? AID.Thunder3 : AID.Thunder1;
+            public AID BestThunder1 => Unlocked(AID.Thunder3) ? AID.Thunder3 : AID.Thunder1;
+            public AID BestThunder2 => Unlocked(AID.Thunder4) ? AID.Thunder4 : AID.Thunder2;
+
+            public AID BestFire1 => Paradox ? AID.Paradox : AID.Fire1;
+            public AID BestFire2 => Unlocked(AID.HighFire2) ? AID.HighFire2 : AID.Fire2;
+            public AID BestBlizzard2 =>
+                Unlocked(AID.HighBlizzard2) ? AID.HighBlizzard2 : AID.Blizzard2;
 
             // statuses
-            public SID ExpectedThunder3 => Unlocked(AID.Thunder3) ? SID.Thunder3 : SID.Thunder1;
+            public SID ExpectedThunder1 => Unlocked(AID.Thunder3) ? SID.Thunder3 : SID.Thunder1;
+            public SID ExpectedThunder2 => Unlocked(AID.Thunder4) ? SID.Thunder4 : SID.Thunder2;
 
-            public State(float[] cooldowns) : base(cooldowns) { }
+            public AID BestPolySpell => Unlocked(AID.Xenoglossy) ? AID.Xenoglossy : AID.Foul;
+
+            public State(float[] cooldowns)
+                : base(cooldowns) { }
 
             public bool Unlocked(AID aid) => Definitions.Unlocked(aid, Level, UnlockProgress);
+
             public bool Unlocked(TraitID tid) => Definitions.Unlocked(tid, Level, UnlockProgress);
+
+            public int GetAdjustedFireCost(int mpCost) =>
+                ElementalLevel switch
+                {
+                    0 => mpCost,
+                    > 0 => UmbralHearts > 0 ? mpCost : mpCost * 2,
+                    < 0 => 0
+                };
+
+            public int GetAdjustedIceCost(int mpCost) =>
+                ElementalLevel switch
+                {
+                    -3 => 0,
+                    -2 => mpCost / 2,
+                    -1 => mpCost / 4 * 3,
+                    _ => mpCost
+                };
+
+            public uint MPPerTick =>
+                ElementalLeft switch
+                {
+                    -3 => 6200,
+                    -2 => 4700,
+                    -1 => 3200,
+                    0 => 200,
+                    _ => 0
+                };
+
+            public uint ExpectedMPAfter(float delay)
+            {
+                var expected = CurMP;
+                var perTick = MPPerTick;
+                delay -= TimeToManaTick;
+
+                while (delay > 0)
+                {
+                    expected += perTick;
+                    delay -= 3f;
+                }
+                return Math.Min(10000, expected);
+            }
+
+            public float GetCastTime(AID action)
+            {
+                if (
+                    action == AID.Paradox && ElementalLevel < 0
+                    || InstantCastLeft > GCD
+                    || action == AID.Fire3 && FirestarterLeft > GCD
+                    || action.Aspect() == BLM.Aspect.Thunder && ThundercloudLeft > GCD
+                    || action == AID.Foul && Unlocked(TraitID.EnhancedFoul)
+                )
+                    return 0f;
+
+                var spsFactor = SpellGCDTime / 2.5f;
+                var castTime = action.BaseCastTime();
+                var aspect = action.Aspect();
+
+                if (
+                    aspect == BLM.Aspect.Ice && ElementalLevel == 3
+                    || aspect == BLM.Aspect.Fire && ElementalLevel == -3
+                )
+                    castTime *= 0.5f;
+
+                return castTime * spsFactor;
+            }
+
+            // in addition to slidecasting, this is also the time until the provided spell spends MP
+            public float GetSlidecastTime(AID action) =>
+                MathF.Max(0f, GetCastTime(action) - 0.500f);
+
+            public float GetCastEnd(AID action) => GetCastTime(action) + GCD;
+
+            public float GetSlidecastEnd(AID action) => GetSlidecastTime(action) + GCD;
 
             public override string ToString()
             {
-                return $"MP={CurMP} (tick={TimeToManaTick:f1}), RB={RaidBuffsLeft:f1}, Elem={ElementalLevel}/{ElementalLeft:f1}, Thunder={TargetThunderLeft:f1}, TC={ThundercloudLeft:f1}, FS={FirestarterLeft:f1}, PotCD={PotionCD:f1}, GCD={GCD:f3}, ALock={AnimationLock:f3}+{AnimationLockDelay:f3}, lvl={Level}/{UnlockProgress}";
+                return $"MP={CurMP} (tick={TimeToManaTick:f1}), RB={RaidBuffsLeft:f1}, E={EnochianTimer}, Elem={ElementalLevel}/{ElementalLeft:f1}, Thunder={TargetThunderLeft:f1}, TC={ThundercloudLeft:f1}, FS={FirestarterLeft:f1}, PotCD={PotionCD:f1}, GCD={GCD:f3}, ALock={AnimationLock:f3}+{AnimationLockDelay:f3}, lvl={Level}/{UnlockProgress}";
             }
         }
 
         // strategy configuration
         public class Strategy : CommonRotation.Strategy
         {
-            public int NumAOETargets;
+            public OffensiveAbilityUse TriplecastStrategy;
+            public OffensiveAbilityUse LeylinesStrategy;
+            public bool UseAOERotation;
+            public bool AutoRefresh;
 
-            public override string ToString()
+            public void ApplyStrategyOverrides(uint[] overrides)
             {
-                return $"AOE={NumAOETargets}, no-dots={ForbidDOTs}, movement-in={ForceMovementIn:f3}";
+                if (overrides.Length >= 2)
+                {
+                    TriplecastStrategy = (OffensiveAbilityUse)overrides[0];
+                    LeylinesStrategy = (OffensiveAbilityUse)overrides[1];
+                }
+                else
+                {
+                    TriplecastStrategy = OffensiveAbilityUse.Automatic;
+                    LeylinesStrategy = OffensiveAbilityUse.Automatic;
+                }
             }
         }
 
-        public static bool CanCast(State state, Strategy strategy, float castTime) => state.SwiftcastLeft > state.GCD || strategy.ForceMovementIn >= state.GCD + castTime;
-
-        public static uint AdjustedFireCost(State state, uint baseCost)
+        private static bool CanCast(State state, Strategy strategy, float castTime, int mpCost)
         {
-            return state.ElementalLevel switch
-            {
-                > 0 => baseCost * 2,
-                < 0 => 0,
-                _ => baseCost
-            };
+            var castEndIn = state.GCD + castTime;
+            var moveOk = castTime == 0 || strategy.ForceMovementIn > castEndIn;
+
+            return moveOk
+                && (strategy.FightEndIn == 0 || strategy.FightEndIn > castEndIn)
+                && state.ExpectedMPAfter(castEndIn) >= mpCost;
         }
 
-        public static int MPTick(int elementalLevel)
+        private static bool CanCast(State state, Strategy strategy, AID action, int mpCost) =>
+            state.Unlocked(action) && CanCast(state, strategy, state.GetSlidecastTime(action), mpCost);
+
+        public static uint MPTick(int elementalLevel)
         {
             return elementalLevel switch
             {
@@ -67,181 +194,331 @@
 
         public static AID GetNextBestGCD(State state, Strategy strategy)
         {
-            if (state.Unlocked(AID.Blizzard3))
+            if (strategy.CombatTimer > -100 && strategy.CombatTimer < 0 && state.TargetingEnemy)
             {
-                // starting from L35, fire/blizzard 2/3 automatically grant 3 fire/ice stacks, so we use them to swap between stances
-                if (strategy.NumAOETargets >= 3)
-                {
-                    // TODO: revise at L58+
-                    if (state.ElementalLevel > 0)
-                    {
-                        // fire phase: F2 until oom > Flare > B2
-                        bool flareUnlocked = state.Unlocked(AID.Flare);
-                        if (CanCast(state, strategy, flareUnlocked ? 4 : 3)) // TODO: flare is 4s cast time, B2 is 1.5s if at 3 stacks, other spells are 3s
-                        {
-                            if (flareUnlocked)
-                                return state.CurMP > AdjustedFireCost(state, 1500) ? AID.Fire2 : state.CurMP > 0 ? AID.Flare : AID.Blizzard2;
-                            else
-                                return state.CurMP >= AdjustedFireCost(state, 1500) ? AID.Fire2 : AID.Blizzard2;
-                        }
-                        if (!strategy.ForbidDOTs && state.ThundercloudLeft > state.GCD)
-                            return AID.Thunder2;
-                        return AID.None; // chill...
-                    }
-                    else if (state.ElementalLevel < 0)
-                    {
-                        // ice phase: Freeze/B2 if needed for mana tick > T2 if needed to refresh > F2
-                        if (!strategy.ForbidDOTs && state.TargetThunderLeft <= state.GCD && (state.ThundercloudLeft > state.GCD || CanCast(state, strategy, 2.5f)))
-                            return AID.Thunder2; // if thunder is about to fall off, refresh before B2
+                if (
+                    strategy.CombatTimer > -state.GetCastTime(AID.Fire3)
+                    && state.ElementalLevel == 0
+                )
+                    return AID.Fire3;
 
-                        bool wantThunder = !strategy.ForbidDOTs && state.TargetThunderLeft < 10; // TODO: better threshold
-                        if (CanCast(state, strategy, 3))
-                        {
-                            float minTimeToSwap = state.GCD + (wantThunder ? 2.5f : 0) + 1; // F2 is always hardcasted, time is 3 / 2 = 1.5 minus ~0.5 slidecast
-                            var mpTicksAtMinSwap = (int)((3 - state.TimeToManaTick + minTimeToSwap) / 3);
-                            var mpAtMinSwap = state.CurMP + mpTicksAtMinSwap * MPTick(state.ElementalLevel);
-                            if (mpAtMinSwap < 9600)
-                                return state.Unlocked(AID.Freeze) ? AID.Freeze : AID.Blizzard2;
-                        }
-                        if (!strategy.ForbidDOTs && state.ThundercloudLeft > state.GCD || wantThunder && CanCast(state, strategy, 2.5f))
-                            return AID.Thunder2;
-                        if (state.CurMP >= 9600 && CanCast(state, strategy, state.ElementalLevel == -3 ? 1.5f : 3))
-                            return AID.Fire2;
-                        return AID.None; // chill...
-                    }
-                    else
-                    {
-                        // opener or just dropped elemental for some reason - just F3
-                        // TODO: should we open with dot instead?..
-                        if (CanCast(state, strategy, 2.5f))
-                            return state.CurMP >= 9600 ? AID.Fire2 : AID.Blizzard2;
-                        return AID.None; // chill?..
-                    }
-                }
-                else
-                {
-                    // TODO: revise at L58+
-                    if (state.ElementalLevel > 0)
-                    {
-                        // fire phase: F3P > F1 until oom > B3
-                        // TODO: Tx[P] now? or delay until ice phase?
-                        if (state.FirestarterLeft > state.GCD)
-                            return AID.Fire3;
-                        if (CanCast(state, strategy, 2.5f)) // TODO: B3 is 3.5, but since we typically have 3 fire stacks, it's actually 1.75
-                            return state.CurMP >= AdjustedFireCost(state, 800) ? AID.Fire1 : AID.Blizzard3;
-                        // TODO: scathe on the move?..
-                        if (!strategy.ForbidDOTs && state.ThundercloudLeft > state.GCD)
-                            return state.BestThunder3;
-                        return AID.None; // chill...
-                    }
-                    else if (state.ElementalLevel < 0)
-                    {
-                        // ice phase: B1 if needed for mana tick > T1/T3 if needed to refresh > F3
-                        if (!strategy.ForbidDOTs && state.TargetThunderLeft <= state.GCD && (state.ThundercloudLeft > state.GCD || CanCast(state, strategy, 2.5f)))
-                            return state.BestThunder3; // if thunder is about to fall off, refresh before B1
+                if (strategy.CombatTimer > -1 && state.TargetThunderLeft == 0)
+                    return AID.Thunder3;
 
-                        bool wantThunder = !strategy.ForbidDOTs && state.TargetThunderLeft < 10; // TODO: better threshold
-                        if (CanCast(state, strategy, 2.5f))
-                        {
-                            float minTimeToSwap = state.GCD + (wantThunder ? 2.5f : 0);
-                            if (state.FirestarterLeft < minTimeToSwap)
-                                minTimeToSwap += 1.2f; // when hardcasting F3, swap happens around slidecast start; cast time for F3 is 3.5 / 2 = 1.75, action effect happens ~0.5s before cast end
-                            var mpTicksAtMinSwap = (int)((3 - state.TimeToManaTick + minTimeToSwap) / 3);
-                            var mpAtMinSwap = state.CurMP + mpTicksAtMinSwap * MPTick(state.ElementalLevel);
-                            if (mpAtMinSwap < 9800)
-                                return AID.Blizzard1;
-                        }
-                        if (!strategy.ForbidDOTs && state.ThundercloudLeft > state.GCD || wantThunder && CanCast(state, strategy, 2.5f))
-                            return state.BestThunder3;
-                        if (state.CurMP >= 9800 && (state.FirestarterLeft > state.GCD || CanCast(state, strategy, state.ElementalLeft == -3 ? 1.75f : 3.5f)))
-                            return AID.Fire3;
-                        return AID.None; // chill...
-                    }
-                    else
-                    {
-                        // opener or just dropped elemental for some reason - just F3
-                        // TODO: should we open with dot instead?..
-                        if (state.CurMP >= 9800 && (state.FirestarterLeft > state.GCD || CanCast(state, strategy, 3.5f)))
-                            return AID.Fire3;
-                        else if (CanCast(state, strategy, 3.5f))
-                            return AID.Blizzard3;
-                        return AID.None; // chill?..
-                    }
-                }
+                return AID.None;
+            }
+
+            if (
+                !state.TargetingEnemy
+                && state.ElementalLevel < 0
+                && (state.ElementalLeft < 5 || state.UmbralHearts < 3 || state.ElementalLevel > -3)
+                && state.Unlocked(AID.UmbralSoul)
+                && strategy.AutoRefresh
+            )
+                return AID.UmbralSoul;
+
+            // first check if F4 is unlocked and fire timer is running out. all other fire spells refresh the timer
+            // TODO: needs some fixing. F4 F1 is 2.8s + 2.5s, F4 Despair is 2.8s + 3s, it is possible to skip this branch
+            // with (e.g.) 5.5s remaining on elemental timer, but then after F4 cast we have <1600 MP, can't cast F1,
+            // despair is now too slow
+            if (
+                !strategy.UseAOERotation
+                && state.Unlocked(AID.Fire4)
+                && state.ElementalLevel == 3
+                && state.ElementalLeft
+                    < state.GCD + state.GetCastTime(AID.Fire4) + state.GetCastTime(AID.Fire1)
+            )
+            {
+                // use despair now if f1 will leave us with too little mana
+                if (
+                    state.ElementalLeft >= state.GetCastEnd(AID.Despair)
+                    && CanCast(state, strategy, AID.Despair, 800)
+                    && state.CurMP - 800 < state.GetAdjustedFireCost(800)
+                )
+                    return AID.Despair;
+
+                // otherwise use f1/paradox to refresh
+                if (
+                    state.ElementalLeft >= state.GetCastEnd(state.BestFire1)
+                    && CanCast(state, strategy, state.BestFire1, state.GetAdjustedFireCost(800))
+                )
+                    return state.BestFire1;
+
+                if (state.ElementalLeft > state.GCD && state.FirestarterLeft > state.GCD)
+                    return AID.Fire3;
+
+                // out of time, reset to ice
+                if (CanCast(state, strategy, AID.Blizzard3, 0))
+                    return AID.Blizzard3;
+            }
+
+            // polyglot overcap
+            if (
+                state.Polyglot == 2
+                && state.NextPolyglot > 0
+                && state.NextPolyglot < 10
+                && CanCast(state, strategy, AID.Foul, 0)
+            )
+                return strategy.UseAOERotation ? AID.Foul : AID.Xenoglossy;
+
+            // thunder refresh
+            if (state.TargetThunderLeft < 5 && CanCast(state, strategy, state.BestThunder1, 400))
+                return strategy.UseAOERotation && state.Unlocked(state.BestThunder2)
+                    ? state.BestThunder2
+                    : state.BestThunder1;
+
+            // standard gcd loop
+            return state.ElementalLevel > 0
+                ? GetFireGCD(state, strategy)
+                : GetIceGCD(state, strategy);
+        }
+
+        public static AID GetFireGCD(State state, Strategy strategy)
+        {
+            // intentional gcd clip in opener
+            if (
+                state.InstantCastLeft == 0
+                && strategy.CombatTimer < 60
+                && strategy.TriplecastStrategy != CommonRotation.Strategy.OffensiveAbilityUse.Delay
+                && state.Unlocked(AID.Triplecast)
+                && state.CD(CDGroup.Triplecast) == 0
+            )
+                return AID.Triplecast;
+
+            if (strategy.UseAOERotation)
+            {
+                var canFlare = CanCast(state, strategy, AID.Flare, 800);
+                // double flare
+                if (state.UmbralHearts == 1 && canFlare)
+                    return AID.Flare;
+
+                if (
+                    CanCast(state, strategy, state.BestFire2, state.GetAdjustedFireCost(1500) + 800)
+                )
+                    return state.BestFire2;
+
+                if (canFlare)
+                    return AID.Flare;
             }
             else
             {
-                // before L35, fire/blizzard 1/2 cast under wrong element reset stance - so we use transpose rotation
-                if (!CanCast(state, strategy, 3)) // TODO: B2/F2 are 3s, B1/F1 are 2.5s
-                {
-                    // TODO: this is not really correct, we could have thundercloud, but w/e...
-                    if (state.Unlocked(AID.Scathe) && state.CurMP >= 800)
-                        return AID.Scathe;
-                }
-                else if (strategy.NumAOETargets >= 3 && state.Unlocked(AID.Blizzard2))
-                {
-                    if (!strategy.ForbidDOTs && state.Unlocked(AID.Thunder2) && state.TargetThunderLeft <= state.GCD)
-                        return AID.Thunder2;
-                    return state.Unlocked(AID.Fire2) ? TransposeRotationGCD(state, AID.Blizzard2, 800, AID.Fire2, 1500) : AID.Blizzard2;
-                }
-                else
-                {
-                    if (!strategy.ForbidDOTs && state.Unlocked(AID.Thunder1) && state.TargetThunderLeft <= state.GCD)
-                        return AID.Thunder1;
-                    return state.Unlocked(AID.Fire1) ? TransposeRotationGCD(state, AID.Blizzard1, 400, AID.Fire1, 800) : AID.Blizzard1;
-                }
+                if (
+                    state.ElementalLevel < 3
+                    && CanCast(state, strategy, AID.Fire3, state.GetAdjustedFireCost(2000))
+                )
+                    return AID.Fire3;
+
+                if (CanCast(state, strategy, AID.Fire4, state.GetAdjustedFireCost(800) + 800))
+                    return AID.Fire4;
+
+                // before F4 unlock, use firestarter proc for damage
+                // (after F4 unlock we save it for fast ice -> fire swap)
+                if (
+                    !state.Unlocked(AID.Fire4)
+                    && state.FirestarterLeft > state.GCD
+                    && state.Unlocked(AID.Fire3)
+                )
+                    return AID.Fire3;
+
+                if (CanCast(state, strategy, state.BestFire1, state.GetAdjustedFireCost(800) + 800))
+                    return state.BestFire1;
+
+                // TODO: swiftcast flare is a dps gain on two targets
+                if (CanCast(state, strategy, AID.Despair, 800))
+                    return AID.Despair;
+
+                // despair isn't unlocked
+                if (CanCast(state, strategy, AID.Fire1, state.GetAdjustedFireCost(800)))
+                    return AID.Fire1;
             }
+
+            // use instant spell for manafont weave
+            if (
+                state.Polyglot > 0
+                && CanUseManafont(state, strategy, state.GCD + state.SpellGCDTime)
+                && state.Unlocked(TraitID.EnhancedFoul)
+            )
+                return strategy.UseAOERotation ? AID.Foul : AID.Xenoglossy;
+
+            // if fight ending, dump resources instead of switching to ice
+            // (assuming <800 MP left here, otherwise one of the earlier branches would have been taken)
+            if (
+                strategy.FightEndIn > 0
+                && strategy.FightEndIn < state.GetCastEnd(AID.Blizzard3) + state.SpellGCDTime
+            )
+            {
+                if (CanPoly(state, strategy, 1))
+                    return state.BestPolySpell;
+
+                if (state.FirestarterLeft > state.GCD)
+                    return AID.Fire3;
+            }
+
+            // otherwise swap to ice
+            if (strategy.UseAOERotation && CanCast(state, strategy, state.BestBlizzard2, 0))
+                return state.BestBlizzard2;
+
+            if (CanCast(state, strategy, AID.Blizzard3, 0))
+                return AID.Blizzard3;
+
+            if (!state.Paradox && CanCast(state, strategy, AID.Blizzard1, 0))
+                return AID.Blizzard1;
+
+            return AID.None;
+        }
+
+        public static AID GetIceGCD(State state, Strategy strategy)
+        {
+            // get max hearts for swap
+            if (
+                state.UmbralHearts < 3
+                && state.Unlocked(TraitID.EnhancedFreeze)
+                && state.ElementalLevel < 0
+            )
+            {
+                if (strategy.UseAOERotation && CanCast(state, strategy, AID.Freeze, 0))
+                    return AID.Freeze;
+
+                if (CanCast(state, strategy, AID.Blizzard4, 0))
+                    return AID.Blizzard4;
+            }
+
+            // swap if near max mp
+            if (strategy.UseAOERotation)
+            {
+                if (
+                    CanCast(state, strategy, state.BestFire2, 9000)
+                    && (!state.Unlocked(TraitID.EnhancedFreeze) || state.UmbralHearts == 3)
+                )
+                    return state.BestFire2;
+            }
+            else
+            {
+                if (CanCast(state, strategy, AID.Fire3, 9000))
+                    return AID.Fire3;
+
+                if (!state.Paradox && CanCast(state, strategy, AID.Fire1, 9000))
+                    return AID.Fire1;
+            }
+
+            if (state.ElementalLeft < 0 && CanPoly(state, strategy, 2))
+                return strategy.UseAOERotation ? AID.Foul : state.BestPolySpell;
+
+            if (strategy.UseAOERotation)
+            {
+                if (CanCast(state, strategy, state.BestBlizzard2, state.GetAdjustedIceCost(800)))
+                    return state.BestBlizzard2;
+
+                if (CanPoly(state, strategy, 1))
+                    return AID.Foul;
+            }
+            else
+            {
+                if (
+                    CanCast(state, strategy, AID.Blizzard3, state.GetAdjustedIceCost(800))
+                    && state.ElementalLevel > -3
+                )
+                    return AID.Blizzard3;
+
+                // in umbral ice, paradox costs no mp and has no cast time, so no check
+                if (state.Paradox)
+                    return AID.Paradox;
+
+                if (CanPoly(state, strategy, 1))
+                    return state.BestPolySpell;
+
+                if (CanCast(state, strategy, AID.Blizzard1, state.GetAdjustedIceCost(400)))
+                    return AID.Blizzard1;
+            }
+
             return AID.None;
         }
 
         public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline)
         {
-            if (state.Unlocked(AID.Blizzard3))
+            if (strategy.CombatTimer > -100 && strategy.CombatTimer < 0)
             {
-                // L35-Lxx: weave manafont in free slots (TODO: is that right?..)
-                if (deadline >= 10000 && strategy.ForceMovementIn < 5 && state.Unlocked(AID.Swiftcast) && state.CanWeave(CDGroup.Swiftcast, 0.6f, deadline)) // TODO: better swiftcast condition...
-                    return ActionID.MakeSpell(AID.Swiftcast);
-                if (state.Unlocked(AID.Manafont) && state.CanWeave(CDGroup.Manafont, 0.6f, deadline) && state.CurMP <= 7000)
-                    return ActionID.MakeSpell(AID.Manafont);
-            }
-            else
-            {
-                // before L35, use transpose to swap between elemental states
-                // MP thresholds are not especially meaningful (they should work for both ST and AOE), who cares about low level...
-                // we could also use manafont, but again who cares
-                if (state.Unlocked(AID.Transpose) && state.CanWeave(CDGroup.Transpose, 0.6f, deadline) && (state.ElementalLevel < 0 && state.CurMP >= 9200 || state.ElementalLevel > 0 && state.CurMP < 3600))
-                    return ActionID.MakeSpell(AID.Transpose);
+                if (strategy.CombatTimer > -12 && state.SharpcastLeft == 0)
+                    return ActionID.MakeSpell(AID.Sharpcast);
 
-                // TODO: swiftcast if moving...
+                return new();
             }
+
+            if (
+                !state.TargetingEnemy
+                && state.ElementalLevel > 0
+                && state.CanWeave(CDGroup.Transpose, 0.6f, deadline)
+                && strategy.AutoRefresh
+            )
+                return ActionID.MakeSpell(AID.Transpose);
+
+            if (
+                state.FirestarterLeft > state.GCD
+                && state.ElementalLevel < 0
+                && CanCast(state, strategy, 0f, 10000)
+                && state.CanWeave(CDGroup.Transpose, 0.6f, deadline)
+            )
+                return ActionID.MakeSpell(AID.Transpose);
+
+            if (
+                state.CurMP < 800
+                && state.ElementalLevel == 3
+                && CanUseManafont(state, strategy, deadline)
+            )
+                return ActionID.MakeSpell(AID.Manafont);
+
+            if (state.TriplecastLeft > state.GCD)
+            {
+                if (state.CanWeave(CDGroup.Amplifier, 0.6f, deadline) && state.Polyglot < 2)
+                    return ActionID.MakeSpell(AID.Amplifier);
+
+                if (
+                    state.CanWeave(CDGroup.LeyLines, 0.6f, deadline)
+                    && strategy.LeylinesStrategy
+                        != CommonRotation.Strategy.OffensiveAbilityUse.Delay
+                    // don't place leylines after opener, let the player do it
+                    && strategy.CombatTimer < 60
+                )
+                    return ActionID.MakeSpell(AID.LeyLines);
+            }
+
+            if (state.InLeyLines && state.InstantCastLeft < state.GCD)
+            {
+                if (state.CanWeave(CDGroup.Swiftcast, 0.6f, deadline))
+                    return ActionID.MakeSpell(AID.Swiftcast);
+
+                if (
+                    state.CanWeave(state.CD(CDGroup.Triplecast) - 60, 0.6f, deadline)
+                    && (
+                        strategy.CombatTimer > 0 && strategy.CombatTimer < 60
+                        || strategy.TriplecastStrategy
+                            == CommonRotation.Strategy.OffensiveAbilityUse.Force
+                    )
+                )
+                    return ActionID.MakeSpell(AID.Triplecast);
+            }
+
+            // TODO: what we actually want to do is sharpcast *only* if we will refresh thunder using thundercloud, otherwise it will proc on paradox/f1
+            if (
+                state.ThundercloudLeft > 0
+                && state.SharpcastLeft < state.GCD
+                && state.Unlocked(AID.Sharpcast)
+                && state.CanWeave(state.CD(CDGroup.Sharpcast) - 30, 0.6f, deadline)
+            )
+                return ActionID.MakeSpell(AID.Sharpcast);
 
             return new();
         }
 
-        private static AID TransposeRotationGCD(State state, AID iceSpell, int iceCost, AID fireSpell, int fireCost)
+        private static bool CanUseManafont(State state, Strategy strategy, float deadline)
         {
-            if (state.ElementalLevel < 0)
-            {
-                // continue blizzard1 spam until full mana, then swap to fire
-                // TODO: take mana ticks into account, if it happens before GCD
-                if (state.CurMP < 10000 - iceCost)
-                    return iceSpell;
-                else
-                    return state.Unlocked(AID.Transpose) ? AID.None : fireSpell;
-            }
-            else if (state.ElementalLevel > 0)
-            {
-                // continue fire1 spam until oom, then swap to ice
-                if (state.CurMP >= fireCost * 2 + iceCost * 3 / 4)
-                    return fireSpell;
-                else
-                    return state.Unlocked(AID.Transpose) ? AID.None : iceSpell;
-            }
-            else
-            {
-                // dropped buff => fire if have some mana (TODO: better limit), blizzard otherwise
-                return state.CurMP < fireCost * 3 + iceCost * 3 / 4 ? iceSpell : fireSpell;
-            }
+            if (strategy.LeylinesStrategy == CommonRotation.Strategy.OffensiveAbilityUse.Delay)
+                return false;
+
+            return state.CanWeave(CDGroup.Manafont, 0.6f, deadline);
         }
+
+        private static bool CanPoly(State state, Strategy strategy, int minStacks = 2) =>
+            state.Polyglot >= minStacks && CanCast(state, strategy, state.BestPolySpell, 0);
     }
 }

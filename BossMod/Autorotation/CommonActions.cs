@@ -159,7 +159,7 @@ namespace BossMod
         {
             if (actor == null)
                 return (0, 0);
-            var pending = Autorot.WorldState.PendingEffects.PendingStatus(actor.InstanceID, sid, sourceID);
+            var pending = pendingDuration > 0 ? Autorot.WorldState.PendingEffects.PendingStatus(actor.InstanceID, sid, sourceID) : null;
             if (pending != null)
                 return (pendingDuration, pending.Value);
             var status = actor.FindStatus(sid, sourceID);
