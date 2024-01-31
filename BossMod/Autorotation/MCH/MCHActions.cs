@@ -69,21 +69,31 @@ namespace BossMod.MCH
             );
 
             _strategy.NumAOETargets =
-                autoAction == AutoActionST || Autorot.PrimaryTarget == null
-                    ? 0
-                    : Autorot.Hints.NumPriorityTargetsInAOECone(Player.Position, 12, (Autorot.PrimaryTarget.Position - Player.Position).Normalized(), 45.Degrees());
+                autoAction == AutoActionST || Autorot.PrimaryTarget == null ? 0 : NumConeTargets(Autorot.PrimaryTarget, 12);
             _strategy.NumFlamethrowerTargets =
-                autoAction == AutoActionST || Autorot.PrimaryTarget == null
-                    ? 0
-                    : Autorot.Hints.NumPriorityTargetsInAOECone(Player.Position, 8, (Autorot.PrimaryTarget.Position - Player.Position).Normalized(), 45.Degrees());
-            _strategy.NumChainsawTargets =
-                Autorot.PrimaryTarget == null
-                    ? 0
-                    : Autorot.Hints.NumPriorityTargetsInAOERect(Player.Position, (Autorot.PrimaryTarget.Position - Player.Position).Normalized(), 25, 2);
+                autoAction == AutoActionST || Autorot.PrimaryTarget == null ? 0 : NumConeTargets(Autorot.PrimaryTarget, 8);
+            _strategy.NumChainsawTargets = Autorot.PrimaryTarget == null ? 0 : NumChainsawTargets(Autorot.PrimaryTarget);
             _strategy.NumRicochetTargets =
                 Autorot.PrimaryTarget == null
                     ? 0
                     : Autorot.Hints.NumPriorityTargetsInAOECircle(Autorot.PrimaryTarget.Position, 5);
+        }
+
+        private int NumChainsawTargets(Actor target) =>
+            Autorot.Hints.NumPriorityTargetsInAOERect(Player.Position, (target.Position - Player.Position).Normalized(), 25, 2);
+
+        private int NumConeTargets(Actor target, float range) =>
+            Autorot.Hints.NumPriorityTargetsInAOECone(Player.Position, range, (target.Position - Player.Position).Normalized(), 45.Degrees());
+
+        public override Targeting SelectBetterTarget(AIHints.Enemy initial)
+        {
+            var newBest = initial;
+            if (_state.ReassembleLeft > _state.GCD && _state.Unlocked(AID.ChainSaw) && _state.CD(CDGroup.ChainSaw) == 0)
+                newBest = FindBetterTargetBy(initial, 25, x => NumChainsawTargets(x.Actor)).Target;
+            else
+                newBest = FindBetterTargetBy(initial, 12, x => NumConeTargets(x.Actor, 12)).Target;
+
+            return new(newBest, newBest.StayAtLongRange ? 25 : 12);
         }
 
         private void UpdatePlayerState()
