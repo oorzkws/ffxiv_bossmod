@@ -159,7 +159,7 @@ namespace BossMod.MCH
 
         private static bool ShouldReassemble(State state, Strategy strategy)
         {
-            if (state.ReassembleLeft > 0)
+            if (state.ReassembleLeft > 0 || !state.Unlocked(AID.Reassemble))
                 return false;
 
             // scattergun priority

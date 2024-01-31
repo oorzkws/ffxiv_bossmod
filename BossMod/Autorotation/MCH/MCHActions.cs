@@ -71,30 +71,15 @@ namespace BossMod.MCH
             _strategy.NumAOETargets =
                 autoAction == AutoActionST || Autorot.PrimaryTarget == null
                     ? 0
-                    : Autorot.Hints.NumPriorityTargetsInAOECone(
-                        Player.Position,
-                        12,
-                        (Autorot.PrimaryTarget.Position - Player.Position).Normalized(),
-                        45.Degrees()
-                    );
+                    : Autorot.Hints.NumPriorityTargetsInAOECone(Player.Position, 12, (Autorot.PrimaryTarget.Position - Player.Position).Normalized(), 45.Degrees());
             _strategy.NumFlamethrowerTargets =
                 autoAction == AutoActionST || Autorot.PrimaryTarget == null
                     ? 0
-                    : Autorot.Hints.NumPriorityTargetsInAOECone(
-                        Player.Position,
-                        8,
-                        (Autorot.PrimaryTarget.Position - Player.Position).Normalized(),
-                        45.Degrees()
-                    );
+                    : Autorot.Hints.NumPriorityTargetsInAOECone(Player.Position, 8, (Autorot.PrimaryTarget.Position - Player.Position).Normalized(), 45.Degrees());
             _strategy.NumChainsawTargets =
                 Autorot.PrimaryTarget == null
                     ? 0
-                    : Autorot.Hints.NumPriorityTargetsInAOERect(
-                        Player.Position,
-                        (Autorot.PrimaryTarget.Position - Player.Position).Normalized(),
-                        25,
-                        2
-                    );
+                    : Autorot.Hints.NumPriorityTargetsInAOERect(Player.Position, (Autorot.PrimaryTarget.Position - Player.Position).Normalized(), 25, 2);
             _strategy.NumRicochetTargets =
                 Autorot.PrimaryTarget == null
                     ? 0
