@@ -29,10 +29,7 @@ namespace BossMod.MCH
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
         {
-            if (AutoAction < AutoActionAIFight)
-                return new();
-
-            if (Autorot.PrimaryTarget == null)
+            if (Autorot.PrimaryTarget == null || AutoAction < AutoActionAIFight)
                 return new();
 
             ActionID res = new();
