@@ -15,7 +15,7 @@ namespace BossMod.MCH
             public State(float[] cooldowns)
                 : base(cooldowns) { }
 
-            public AID ComboLastMove => (AID)ComboLastAction;
+            public AID ComboLastMove => ComboTimeLeft > GCD ? (AID)ComboLastAction : AID.None;
 
             public AID BestSplitShot => Unlocked(AID.HeatedSplitShot) ? AID.HeatedSplitShot : AID.SplitShot;
             public AID BestSlugShot => Unlocked(AID.HeatedSlugShot) ? AID.HeatedSlugShot : AID.SlugShot;
@@ -44,7 +44,13 @@ namespace BossMod.MCH
         public static AID GetNextBestGCD(State state, Strategy strategy)
         {
             if (state.IsOverheated)
-                return strategy.NumAOETargets > 2 ? AID.AutoCrossbow : AID.HeatBlast;
+            {
+                if (strategy.NumAOETargets > 2 && state.Unlocked(AID.AutoCrossbow))
+                    return AID.AutoCrossbow;
+
+                if (state.Unlocked(AID.HeatBlast))
+                    return AID.HeatBlast;
+            }
 
             var canHotShot = state.Unlocked(AID.HotShot) && state.CD(CDGroup.HotShot) <= state.GCD;
 
@@ -66,7 +72,7 @@ namespace BossMod.MCH
                     return AID.HotShot;
             }
 
-            if (!state.Unlocked(AID.Reassemble) && canHotShot)
+            if ((!state.Unlocked(AID.Reassemble) || state.ReassembleLeft == 0) && canHotShot)
                 return AID.HotShot;
 
             if (
@@ -79,11 +85,16 @@ namespace BossMod.MCH
             if (state.Unlocked(AID.Bioblaster) && state.CD(CDGroup.Drill) <= state.GCD && strategy.NumAOETargets > 1)
                 return AID.Bioblaster;
 
-            if (strategy.NumAOETargets > 2) {
-                if (strategy.NumFlamethrowerTargets >= 3)
+            if (strategy.NumAOETargets > 2)
+            {
+                if (!state.IsOverheated && strategy.NumFlamethrowerTargets >= 3 && state.Unlocked(AID.Flamethrower))
                     return AID.Flamethrower;
 
-                return AID.Scattergun;
+                if (state.Unlocked(AID.Scattergun))
+                    return AID.Scattergun;
+
+                if (state.Unlocked(AID.SpreadShot))
+                    return AID.SpreadShot;
             }
 
             if (state.ComboLastMove == AID.SlugShot && state.Unlocked(AID.CleanShot))
@@ -110,35 +121,32 @@ namespace BossMod.MCH
             if (ShouldUseBurst(state, strategy, deadline))
             {
                 if (
-                    ShouldReassemble(state, strategy)
+                    ShouldUseReassemble(state, strategy)
                     && state.CanWeave(state.CD(CDGroup.Reassemble) - 55, 0.6f, deadline)
-                // && (state.CD(CDGroup.AirAnchor) <= state.GCD || state.CD(CDGroup.ChainSaw) <= state.GCD)
                 )
                     return ActionID.MakeSpell(AID.Reassemble);
 
                 if (
-                    state.CD(CDGroup.AirAnchor) > 0
+                    (!state.Unlocked(AID.AirAnchor) || state.CD(CDGroup.AirAnchor) > 0)
                     && state.CanWeave(CDGroup.Wildfire, 0.6f, deadline)
+                    && state.Heat >= 50
                     && state.WildfireLeft == 0
                 )
                     return ActionID.MakeSpell(AID.Wildfire);
 
                 if (
-                    state.WildfireLeft > 0
-                    && state.Battery >= 50
+                    state.Battery >= 50
                     && !state.HasMinion
                     && state.CanWeave(CDGroup.RookAutoturret, 0.6f, deadline)
-                )
-                    return ActionID.MakeSpell(AID.AutomatonQueen);
+                ) {
+                    if (state.CD(CDGroup.Wildfire) > 0 && state.Unlocked(AID.AutomatonQueen))
+                        return ActionID.MakeSpell(AID.AutomatonQueen);
 
-                if (
-                    state.CD(CDGroup.Wildfire) > 0
-                    && state.CD(CDGroup.AirAnchor) > 0
-                    && state.CD(CDGroup.ChainSaw) > 0
-                    && state.Heat >= 50
-                    && !state.IsOverheated
-                    && state.CanWeave(CDGroup.Hypercharge, 0.6f, deadline)
-                )
+                    if (state.CD(CDGroup.Wildfire) > 0 || !state.Unlocked(AID.Wildfire))
+                        return ActionID.MakeSpell(AID.RookAutoturret);
+                }
+
+                if (ShouldUseHypercharge(state, strategy) && state.CanWeave(CDGroup.Hypercharge, 0.6f, deadline))
                     return ActionID.MakeSpell(AID.Hypercharge);
 
                 var rcd = state.CD(CDGroup.Ricochet) - 60;
@@ -146,20 +154,22 @@ namespace BossMod.MCH
                 var canRcd = state.Unlocked(AID.Ricochet) && state.CanWeave(rcd, 0.6f, deadline);
                 var canGrcd = state.Unlocked(AID.GaussRound) && state.CanWeave(grcd, 0.6f, deadline);
 
-                if (canRcd && canGrcd)
-                    return ActionID.MakeSpell(rcd > grcd ? AID.GaussRound : AID.Ricochet);
-                else if (canRcd)
-                    return ActionID.MakeSpell(AID.Ricochet);
-                else if (canGrcd)
-                    return ActionID.MakeSpell(AID.GaussRound);
+                if (state.IsOverheated) {
+                    if (canRcd && canGrcd)
+                        return ActionID.MakeSpell(rcd > grcd ? AID.GaussRound : AID.Ricochet);
+                    else if (canRcd)
+                        return ActionID.MakeSpell(AID.Ricochet);
+                    else if (canGrcd)
+                        return ActionID.MakeSpell(AID.GaussRound);
+                }
             }
 
             return new();
         }
 
-        private static bool ShouldReassemble(State state, Strategy strategy)
+        private static bool ShouldUseReassemble(State state, Strategy strategy)
         {
-            if (state.ReassembleLeft > 0 || !state.Unlocked(AID.Reassemble))
+            if (state.ReassembleLeft > 0 || !state.Unlocked(AID.Reassemble) || state.RangeToTarget > 25)
                 return false;
 
             // scattergun priority
@@ -176,6 +186,21 @@ namespace BossMod.MCH
                 < 90 => atComboEnd && state.CD(CDGroup.AirAnchor) <= state.GCD,
                 _ => atComboEnd && (state.CD(CDGroup.ChainSaw) <= state.GCD || state.CD(CDGroup.AirAnchor) <= state.GCD)
             };
+        }
+
+        private static bool ShouldUseHypercharge(State state, Strategy strategy)
+        {
+            if (state.Heat < 50 || state.IsOverheated)
+                return false;
+
+            var waitForWildfire = state.Unlocked(AID.Wildfire) && state.CD(CDGroup.Wildfire) <= state.GCD;
+            var waitForAA = state.Unlocked(AID.AirAnchor) && state.CD(CDGroup.AirAnchor) <= state.GCD;
+            var waitForCS = state.Unlocked(AID.ChainSaw) && state.CD(CDGroup.ChainSaw) <= state.GCD;
+
+            if (waitForWildfire || waitForAA || waitForCS)
+                return false;
+
+            return true;
         }
 
         private static bool ShouldUseBurst(State state, Strategy strategy, float deadline) =>
