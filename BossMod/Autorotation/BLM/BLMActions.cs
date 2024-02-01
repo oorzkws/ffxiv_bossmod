@@ -81,6 +81,7 @@ namespace BossMod.BLM
                     ActionID.MakeSpell(AID.Transpose),
                     Player,
                     !Player.InCombat
+                        && !_state.Unlocked(AID.UmbralSoul)
                         && (
                             _state.ElementalLevel > 0 && _state.CurMP < 10000
                             || _state.ElementalLevel < 0
