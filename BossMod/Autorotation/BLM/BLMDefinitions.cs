@@ -118,6 +118,9 @@ namespace BossMod.BLM
         Triplecast = 1211, // applied by Triplecast to self
         LeyLines = 737, // applied by Ley Lines to self
         CircleOfPower = 738, // active while standing in Ley Lines
+        AutoEther = 2343, // applied by Resistance Ether Kit to self
+        MagicBurst = 1652, // applied by Lost Chainspell, 30% MP cost increase
+        LostFontOfMagic = 2332, // applied by Lost Font of Magic to self
     }
 
     public enum Aspect : uint

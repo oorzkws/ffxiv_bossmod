@@ -40,8 +40,13 @@ namespace BossMod.BLM
             public float NextPolyglot => EnochianTimer;
             public int MaxHearts => Unlocked(TraitID.EnhancedFreeze) ? 3 : 0;
 
+            public float TimeToManaHalfTick => TimeToManaTick > 1.5 ? TimeToManaTick - 1.5f : TimeToManaTick + 1.5f;
 
             public float InstantCastLeft => MathF.Max(SwiftcastLeft, TriplecastLeft);
+            public float FontOfMagicLeft;
+            public float MagicBurstLeft;
+            public float LucidDreamingLeft;
+            public float AutoEtherLeft;
 
             // upgrade paths
             public AID BestThunder1 => Unlocked(AID.Thunder3) ? AID.Thunder3 : AID.Thunder1;
@@ -65,45 +70,56 @@ namespace BossMod.BLM
 
             public bool Unlocked(TraitID tid) => Definitions.Unlocked(tid, Level, UnlockProgress);
 
-            public int GetAdjustedFireCost(int mpCost) =>
+            public int GetAdjustedFireCost(int mpCost) => AdjustCost(
                 ElementalLevel switch
                 {
                     0 => mpCost,
                     > 0 => UmbralHearts > 0 ? mpCost : mpCost * 2,
                     < 0 => 0
-                };
+                });
 
-            public int GetAdjustedIceCost(int mpCost) =>
+            public int GetAdjustedIceCost(int mpCost) => AdjustCost(
                 ElementalLevel switch
                 {
                     -3 => 0,
                     -2 => mpCost / 2,
                     -1 => mpCost / 4 * 3,
                     _ => mpCost
-                };
+                });
 
-            public uint MPPerTick =>
-                ElementalLeft switch
-                {
-                    -3 => 6200,
-                    -2 => 4700,
-                    -1 => 3200,
-                    0 => 200,
-                    _ => 0
-                };
+            public int AdjustCost(int mpCost) => MagicBurstLeft > GCD ? mpCost / 100 * 130 : mpCost;
 
-            public uint ExpectedMPAfter(float delay)
+            // FoM drains MP every half-tick, deducting a random amount between 50% and 150% of 1100 MP
+            private const int MAXIMUM_FOM_TICK = 1650;
+            // Lucid Dreaming's refresh effect is then applied on top of that (so is Cure II, which is 1000 MP per tick, but i don't know the SID for it)
+            public int MPDrainPerHalfTick => (FontOfMagicLeft > 0 ? MAXIMUM_FOM_TICK : 0) - (LucidDreamingLeft > 0 ? 550 : 0);
+
+            public int ExpectedMPAfter(float delay)
             {
-                var expected = CurMP;
-                var perTick = MPPerTick;
-                delay -= TimeToManaTick;
+                float originalDeadline = delay;
+                var expected = (int)CurMP;
+                var perTick = (int)MPTick(ElementalLevel);
+                var drainPerTick = MPDrainPerHalfTick;
+
+                bool evenTick = TimeToManaTick < TimeToManaHalfTick;
+                bool mightEther = AutoEtherLeft > originalDeadline;
 
                 while (delay > 0)
                 {
-                    expected += perTick;
-                    delay -= 3f;
+                    if (evenTick)
+                        expected += perTick;
+                    else
+                        expected -= drainPerTick;
+
+                    if (expected < 2000 && mightEther) {
+                        expected += 5000;
+                        mightEther = false; // 50% chance to expire
+                    }
+
+                    delay -= 1.5f;
+                    evenTick = !evenTick;
                 }
-                return Math.Min(10000, expected);
+                return Math.Min(10000, Math.Max(0, expected));
             }
 
             public float GetCastTime(AID action)
@@ -167,17 +183,24 @@ namespace BossMod.BLM
             }
         }
 
-        private static bool CanCast(State state, Strategy strategy, float castTime, int mpCost)
+        private static bool CanCast(State state, Strategy strategy, float castTime, int mpCost, bool preserveFoM = true)
         {
             var castEndIn = state.GCD + castTime;
             var moveOk = castTime == 0 || strategy.ForceMovementIn > castEndIn;
+            var minMP = 0;
+
+            if (mpCost == -1)
+                mpCost = Math.Max(800, (int)state.CurMP);
+
+            if (preserveFoM && state.FontOfMagicLeft >= castEndIn)
+                minMP = state.MPDrainPerHalfTick + 1;
 
             return moveOk
                 && (strategy.FightEndIn == 0 || strategy.FightEndIn > castEndIn)
-                && state.ExpectedMPAfter(castEndIn) >= mpCost;
+                && state.ExpectedMPAfter(castEndIn) >= mpCost + minMP;
         }
 
-        private static bool CanCast(State state, Strategy strategy, AID action, int mpCost) =>
+        private static bool CanCast(State state, Strategy strategy, AID action, int mpCost, bool preserveFoM = true) =>
             state.Unlocked(action) && CanCast(state, strategy, state.GetSlidecastTime(action), mpCost);
 
         public static uint MPTick(int elementalLevel)
@@ -232,7 +255,7 @@ namespace BossMod.BLM
                 // use despair now if f1 will leave us with too little mana
                 if (
                     state.ElementalLeft >= state.GetCastEnd(AID.Despair)
-                    && CanCast(state, strategy, AID.Despair, 800)
+                    && CanCast(state, strategy, AID.Despair, -1)
                     && state.CurMP - 800 < state.GetAdjustedFireCost(800)
                 )
                     return AID.Despair;
@@ -262,7 +285,7 @@ namespace BossMod.BLM
                 return strategy.UseAOERotation ? AID.Foul : AID.Xenoglossy;
 
             // thunder refresh
-            if (state.TargetThunderLeft < 5 && CanCast(state, strategy, state.BestThunder1, 400))
+            if (state.TargetThunderLeft < 5 && CanCast(state, strategy, state.BestThunder1, state.AdjustCost(400)))
                 return strategy.UseAOERotation && state.Unlocked(state.BestThunder2)
                     ? state.BestThunder2
                     : state.BestThunder1;
@@ -287,7 +310,7 @@ namespace BossMod.BLM
 
             if (strategy.UseAOERotation)
             {
-                var canFlare = CanCast(state, strategy, AID.Flare, 800);
+                var canFlare = CanCast(state, strategy, AID.Flare, -1);
                 // double flare
                 if (state.UmbralHearts == 1 && canFlare)
                     return AID.Flare;
@@ -324,7 +347,7 @@ namespace BossMod.BLM
                     return state.BestFire1;
 
                 // TODO: swiftcast flare is a dps gain on two targets
-                if (CanCast(state, strategy, AID.Despair, 800))
+                if (CanCast(state, strategy, AID.Despair, -1))
                     return AID.Despair;
 
                 // despair isn't unlocked
@@ -387,17 +410,17 @@ namespace BossMod.BLM
             if (strategy.UseAOERotation)
             {
                 if (
-                    CanCast(state, strategy, state.BestFire2, 9000)
+                    CanCast(state, strategy, state.BestFire2, 8200)
                     && (!state.Unlocked(TraitID.EnhancedFreeze) || state.UmbralHearts == 3)
                 )
                     return state.BestFire2;
             }
             else
             {
-                if (CanCast(state, strategy, AID.Fire3, 9000))
+                if (CanCast(state, strategy, AID.Fire3, 8200))
                     return AID.Fire3;
 
-                if (!state.Paradox && CanCast(state, strategy, AID.Fire1, 9000))
+                if (!state.Paradox && CanCast(state, strategy, AID.Fire1, 8200))
                     return AID.Fire1;
             }
 

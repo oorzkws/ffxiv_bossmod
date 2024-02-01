@@ -183,6 +183,10 @@ namespace BossMod.BLM
 
             _state.LeyLinesLeft = StatusDetails(Player, SID.LeyLines, Player.InstanceID).Left;
             _state.InLeyLines = StatusDetails(Player, SID.CircleOfPower, Player.InstanceID).Left > 0;
+
+            _state.FontOfMagicLeft = StatusDetails(Player, SID.LostFontOfMagic, Player.InstanceID).Left;
+            _state.MagicBurstLeft = StatusDetails(Player, SID.MagicBurst, Player.InstanceID).Left;
+            _state.LucidDreamingLeft = StatusDetails(Player, SID.LucidDreaming, Player.InstanceID).Left;
         }
 
         private void OnConfigModified(object? sender, EventArgs args)
