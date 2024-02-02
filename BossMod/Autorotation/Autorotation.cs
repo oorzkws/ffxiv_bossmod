@@ -128,6 +128,7 @@ namespace BossMod
                     Class.RPR => typeof(RPR.Actions),
                     Class.GNB => typeof(GNB.Actions),
                     Class.SAM => Service.ClientState.LocalPlayer?.Level == 90 ? typeof(SAM.Actions) : null,
+                    Class.NIN => typeof(NIN.Actions),
                     Class.DNC => typeof(DNC.Actions),
                     _ => null
                 };
