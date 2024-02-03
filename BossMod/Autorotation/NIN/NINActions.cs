@@ -61,9 +61,9 @@ namespace BossMod.NIN
 
             ActionID res = new();
             if (_state.CanWeave(deadline - _state.OGCDSlotLength)) // first ogcd slot
-                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline - _state.OGCDSlotLength, false);
+                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline - _state.OGCDSlotLength);
             if (!res && _state.CanWeave(deadline)) // second/only ogcd slot
-                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline, true);
+                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline);
             return MakeResult(res, Autorot.PrimaryTarget);
         }
 
@@ -89,6 +89,7 @@ namespace BossMod.NIN
                     : Autorot.Hints.NumPriorityTargetsInAOECircle(Autorot.PrimaryTarget.Position, 6);
             _strategy.NumTargetsInDoton =
                 _state.DotonLeft > 0 ? Autorot.Hints.NumPriorityTargetsInAOECircle(_lastDotonPos, 5) : 0;
+            _strategy.UseAOERotation = autoAction == AutoActionAOE;
         }
 
         private void UpdatePlayerState()
