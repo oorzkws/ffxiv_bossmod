@@ -104,12 +104,21 @@ namespace BossMod.BLM
                 bool evenTick = TimeToManaTick < TimeToManaHalfTick;
                 bool mightEther = AutoEtherLeft > originalDeadline;
 
+                delay -= evenTick ? TimeToManaTick : TimeToManaHalfTick;
+
                 while (delay > 0)
                 {
-                    if (evenTick)
+                    if (evenTick) {
                         expected += perTick;
-                    else
+                    } else {
+                        // lucid dreaming applies a mana drain of -550 (in other words, +550 MP every 3 seconds) but
+                        // it does not regen mana in astral fire
+                        // HOWEVER, it does reduce the mana drain of Font of Magic EVEN DURING astral fire
+                        // in other words, we can't gain mana on half ticks during astral fire, but we can lose less
+                        if (drainPerTick < 0 && ElementalLevel > 0)
+                            drainPerTick = 0;
                         expected -= drainPerTick;
+                    }
 
                     if (expected < 2000 && mightEther) {
                         expected += 5000;
@@ -201,7 +210,7 @@ namespace BossMod.BLM
         }
 
         private static bool CanCast(State state, Strategy strategy, AID action, int mpCost, bool preserveFoM = true) =>
-            state.Unlocked(action) && CanCast(state, strategy, state.GetSlidecastTime(action), mpCost);
+            state.Unlocked(action) && CanCast(state, strategy, state.GetSlidecastTime(action), mpCost, preserveFoM);
 
         public static uint MPTick(int elementalLevel)
         {
@@ -492,7 +501,7 @@ namespace BossMod.BLM
 
             if (state.TriplecastLeft > state.GCD)
             {
-                if (state.CanWeave(CDGroup.Amplifier, 0.6f, deadline) && state.Polyglot < 2)
+                if (state.CanWeave(CDGroup.Amplifier, 0.6f, deadline) && state.Polyglot < 2 && state.ElementalLevel != 0)
                     return ActionID.MakeSpell(AID.Amplifier);
 
                 if (
