@@ -186,7 +186,14 @@ namespace BossMod
 
         protected static bool IsHOT(uint sid)
         {
-            return (WHM.SID)sid is WHM.SID.Medica2 or WHM.SID.Asylum or WHM.SID.Regen;
+            if ((WHM.SID)sid is WHM.SID.Medica2 or WHM.SID.Asylum or WHM.SID.Regen) return true;
+            if ((SGE.SID)sid is SGE.SID.PhysisII or SGE.SID.Kerakeia) return true;
+            return false;
+        }
+
+        protected static bool CanBeRaised(Actor actor)
+        {
+            return actor.IsDead && actor.FindStatus(148) == null;
         }
 
         protected static BitMask CastedHealTargets(WorldState ws, Actor a)
@@ -200,10 +207,12 @@ namespace BossMod
                 case (uint)WHM.AID.Cure2:
                 case (uint)SCH.AID.Physick:
                 case (uint)SCH.AID.Adloquium:
+                case (uint)SGE.AID.Diagnosis:
                     res.Set(ws.Party.FindSlot(a.CastInfo.TargetID));
                     break;
                 case (uint)WHM.AID.Medica1:
                 case (uint)SCH.AID.Succor:
+                case (uint)SGE.AID.Prognosis:
                     res = ws.Party.WithSlot().InRadius(a.Position, 15).Mask();
                     break;
                 case (uint)WHM.AID.Medica2:

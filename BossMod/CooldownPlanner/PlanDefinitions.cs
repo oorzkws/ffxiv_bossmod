@@ -59,6 +59,7 @@ namespace BossMod
             Classes[Class.PLD] = DefinePLD();
             Classes[Class.WHM] = DefineWHM();
             Classes[Class.SCH] = DefineSCH();
+            Classes[Class.SGE] = DefineSGE();
             Classes[Class.DRG] = DefineDRG();
             Classes[Class.MNK] = DefineMNK();
             Classes[Class.BRD] = DefineBRD();
@@ -117,6 +118,20 @@ namespace BossMod
         private static ClassData DefineSCH()
         {
             var c = new ClassData(typeof(SCH.AID), SCH.Definitions.SupportedActions);
+            return c;
+        }
+
+        private static ClassData DefineSGE()
+        {
+            var c = new ClassData(typeof(SGE.AID), SCH.Definitions.SupportedActions);
+            c.CooldownTracks.Add(new("Surecast", ActionID.MakeSpell(SGE.AID.Surecast), 44));
+            c.CooldownTracks.Add(new("Physis", [
+                (ActionID.MakeSpell(SGE.AID.PhysisII), 60),
+                (ActionID.MakeSpell(SGE.AID.Physis), 20)
+            ]));
+            c.CooldownTracks.Add(new("Kerachole", ActionID.MakeSpell(SGE.AID.Kerachole), 50));
+            c.CooldownTracks.Add(new("Holos", ActionID.MakeSpell(SGE.AID.Holos), 76));
+            c.CooldownTracks.Add(new("Panhaima", ActionID.MakeSpell(SGE.AID.Panhaima), 80));
             return c;
         }
 
