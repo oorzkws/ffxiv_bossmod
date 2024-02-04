@@ -9,6 +9,9 @@ namespace BossMod
         [PropertyDisplay("Automatically Hide out of combat to restore mudra charges")]
         public bool AutoHide = true;
 
+        [PropertyDisplay("Automatically cancel Hide")]
+        public bool AutoUnhide = true;
+
         [PropertyDisplay("Press Hakke Mujinsatsu to cast Doton")]
         public bool OneButtonDoton = true;
     }

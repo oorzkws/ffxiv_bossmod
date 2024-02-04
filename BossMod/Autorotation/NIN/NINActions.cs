@@ -1,7 +1,5 @@
 using System;
-using System.Runtime.CompilerServices;
 using Dalamud.Game.ClientState.JobGauge.Types;
-using FFXIVClientStructs.FFXIV.Common.Lua;
 
 namespace BossMod.NIN
 {
@@ -49,9 +47,24 @@ namespace BossMod.NIN
             if (AutoAction < AutoActionAIFight)
                 return new();
 
+            if (_strategy.CombatTimer < 0 && _strategy.AutoUnhide && _state.Hidden)
+                StatusOff((uint)SID.Hidden);
+
             var aid = Rotation.GetNextBestGCD(_state, _strategy);
 
             return MakeResult(aid, Autorot.PrimaryTarget);
+        }
+
+        private unsafe void StatusOff(uint sid)
+        {
+            var obj = Service.ObjectTable[Player.SpawnIndex] as Dalamud.Game.ClientState.Objects.Types.BattleChara;
+            if (obj == null)
+                return;
+            var man = (FFXIVClientStructs.FFXIV.Client.Game.StatusManager*)obj.StatusList.Address;
+            var stat = man->GetStatusIndex(sid);
+            if (stat < 0)
+                return;
+            man->RemoveStatus(stat);
         }
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
@@ -64,6 +77,7 @@ namespace BossMod.NIN
                 res = Rotation.GetNextBestOGCD(_state, _strategy, deadline - _state.OGCDSlotLength);
             if (!res && _state.CanWeave(deadline)) // second/only ogcd slot
                 res = Rotation.GetNextBestOGCD(_state, _strategy, deadline);
+
             return MakeResult(res, Autorot.PrimaryTarget);
         }
 
@@ -115,7 +129,7 @@ namespace BossMod.NIN
             _state.SuitonLeft = StatusDetails(Player, SID.Suiton, Player.InstanceID).Left;
             _state.DotonLeft = StatusDetails(Player, SID.Doton, Player.InstanceID).Left;
             _state.MeisuiLeft = StatusDetails(Player, SID.Meisui, Player.InstanceID).Left;
-            _state.HiddenLeft = StatusDetails(Player, SID.Hidden, Player.InstanceID).Left;
+            _state.Hidden = StatusDetails(Player, SID.Hidden, Player.InstanceID).Stacks > 0;
             _state.KamaitachiLeft = StatusDetails(Player, SID.PhantomKamaitachiReady, Player.InstanceID).Left;
             _state.TargetMugLeft = StatusDetails(Autorot.PrimaryTarget, SID.VulnerabilityUp, Player.InstanceID).Left;
             _state.TargetTrickLeft = StatusDetails(Autorot.PrimaryTarget, SID.TrickAttack, Player.InstanceID).Left;
@@ -123,7 +137,7 @@ namespace BossMod.NIN
 
         protected override void OnActionSucceeded(ActorCastEvent ev)
         {
-            // TODO there is a better way to do this, right?
+            // TODO there must be a better way to do this. does doton spawn an object we can look for?
             if (ev.Action.ID == (uint)AID.Doton)
                 _lastDotonPos = Player.Position;
 
@@ -157,7 +171,8 @@ namespace BossMod.NIN
             SupportedSpell(AID.SpinningEdge).PlaceholderForAuto = _config.FullRotation ? AutoActionST : AutoActionNone;
             SupportedSpell(AID.DeathBlossom).PlaceholderForAuto = _config.FullRotation ? AutoActionAOE : AutoActionNone;
 
-            _strategy.NonCombatHide = _config.AutoHide;
+            _strategy.AutoHide = _config.AutoHide;
+            _strategy.AutoUnhide = _config.AutoUnhide;
         }
     }
 }

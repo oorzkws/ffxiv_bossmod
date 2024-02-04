@@ -66,7 +66,7 @@ namespace BossMod.NIN
         Meisui = 16489, // L72, instant, 120.0s CD (group 22), range 0, single-target 0/0, targets=self, animLock=???
         Bunshin = 16493, // L80, instant, 90.0s CD (group 14), range 0, single-target 0/0, targets=self, animLock=???
 
-        // actions performed by shadow during bunshin; these are just included for completeness' sake as they can't be directly used
+        // triggered actions; these are just included for completeness' sake as they can't be directly used
         ShadowHuraijin = 25877, // L60, instant, 0.0s CD (group 3), range 100, single-target 0/0, targets=hostile, animLock=???
         ShadowDeathBlossom = 17419, // L80, instant, 0.0s CD (group 3), range 0, AOE circle 5/0, targets=self, animLock=???
         ShadowThrowingDagger = 17418, // L80, instant, 0.0s CD (group 3), range 100, single-target 0/0, targets=hostile, animLock=???
@@ -78,9 +78,9 @@ namespace BossMod.NIN
         ShadowPhantomKamaitachi = 25775, // L82, instant, 0.0s CD (group 3), range 100, AOE circle 5/0, targets=hostile, animLock=???
         ShadowForkedRaiju = 25878, // L90, instant, 0.0s CD (group 3), range 100, single-target 0/0, targets=hostile, animLock=???
         ShadowFleetingRaiju = 25879, // L90, instant, 0.0s CD (group 3), range 100, single-target 0/0, targets=hostile, animLock=???
-
-        // not performed by shadow but still automatic
         HollowNozuchi = 25776, // L86, instant, 0.0s CD (group 3), range 100, AOE circle 5/0, targets=self/area/!dead, animLock=???
+
+        Unhide_DO_NOT_USE = 999999
     }
 
     public enum TraitID : uint
