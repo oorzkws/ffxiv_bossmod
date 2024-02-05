@@ -19,11 +19,14 @@ namespace BossMod.NIN
             public float MeisuiLeft;
             public bool Hidden;
             public float KamaitachiLeft;
+            public float TrueNorthLeft;
 
             public (float Left, int Combo) TenChiJin;
             public (float Left, int Combo) Mudra;
             public (float Left, int Stacks) Bunshin;
             public (float Left, int Stacks) RaijuReady;
+
+            public bool InCombo => Mudra.Left > 0;
 
             public byte Ninki;
 
@@ -57,7 +60,7 @@ namespace BossMod.NIN
                             11 or 14 => [AID.TCJHuton, AID.None, AID.None],
                             _ => [AID.None, AID.None, AID.None]
                         };
-                    else if (Mudra.Left > 0 || KassatsuLeft > 0)
+                    else if (InCombo || KassatsuLeft > 0)
                         return [AID.Ten2, AID.Chi2, AID.Jin2];
                     else
                         return [AID.Ten, AID.Chi, AID.Jin];
@@ -99,7 +102,6 @@ namespace BossMod.NIN
             public bool AutoHide;
             public bool AutoUnhide;
             public bool AllowDashRaiju;
-            public bool UseAOERotation;
 
             public int NumPointBlankAOETargets;
             public int NumKatonTargets;
@@ -147,8 +149,16 @@ namespace BossMod.NIN
             if (!HaveTarget(state, strategy))
                 return AID.None;
 
-            if (strategy.CombatTimer > 0 && state.HutonLeft == 0 && state.Unlocked(AID.Huraijin))
-                return AID.Huraijin;
+            // emergency huton refresh
+            if (state.HutonLeft == 0)
+                if (state.Unlocked(AID.Huraijin))
+                    return AID.Huraijin;
+                else if (PerformNinjutsu(state, AID.Huton, out act))
+                    return act;
+
+            // low level huton refresh
+            if (!state.Unlocked(AID.ArmorCrush) && state.HutonLeft < 5 && PerformNinjutsu(state, AID.Huton, out act))
+                return act;
 
             // spending charges on suiton + trick on dungeon packs is generally a potency loss
             if (ShouldUseSuiton(state, strategy) && PerformNinjutsu(state, AID.Suiton, out act))
@@ -167,10 +177,6 @@ namespace BossMod.NIN
 
             if (ShouldUseDamageNinjutsu(state, strategy))
             {
-                // escape hatch. one of the conditions below changed during our cast, but the rotation isn't smart enough to know that
-                if (state.CurrentNinjutsu is AID.GokaMekkyaku or AID.HyoshoRanryu or AID.Katon or AID.Raiton)
-                    return state.CurrentNinjutsu;
-
                 if (!state.Unlocked(AID.Chi))
                 {
                     // level <35, raiton is not unlocked yet
@@ -180,7 +186,7 @@ namespace BossMod.NIN
                 else if (
                     // if kassatsu expires this will hopefully fall through to case 4 below where we use regular katon
                     // since katon's combo start is raiton's combo end it's not possible to be in a state where we can
-                    // choose which one we want to use (see escape hatch above)
+                    // choose which one we want to use
                     state.KassatsuLeft > state.GCD
                     && state.Unlocked(AID.GokaMekkyaku)
                     && strategy.NumKatonTargets >= 3
@@ -193,7 +199,8 @@ namespace BossMod.NIN
                     // wait until trick application to use hyosho
                     // extra check here that kassatsu won't expire within 2 mudra casts. unlike goka, which downgrades
                     // to katon (which serves the same purpose), hyosho downgrades to hyoton which is generally worthless
-                    state.KassatsuLeft > state.GCD + (2 - state.CurrentComboLength)
+                    state.KassatsuLeft
+                        > state.GCD + (2 - state.CurrentComboLength)
                     && PerformNinjutsu(state, AID.HyoshoRanryu, out act)
                 )
                 {
@@ -243,7 +250,7 @@ namespace BossMod.NIN
         {
             // don't use anything during ninjutsu as it breaks combo
             // TODO does this need to be a condition on all of our ogcd action definitions to prevent queueing?
-            if (state.Mudra.Left > 0 || state.TenChiJin.Left > 0)
+            if (state.InCombo || state.TenChiJin.Left > 0)
                 return new();
 
             if (
@@ -262,7 +269,7 @@ namespace BossMod.NIN
             )
                 return ActionID.MakeSpell(AID.Kassatsu);
 
-            if (state.TargetTrickLeft > 0 || strategy.UseAOERotation)
+            if (state.TargetTrickLeft > 0 || strategy.NumPointBlankAOETargets >= 3)
             {
                 // these two have a different cdgroup for some reason
                 if (state.Unlocked(AID.DreamWithinADream))
@@ -280,6 +287,7 @@ namespace BossMod.NIN
                     state.KassatsuLeft == 0
                     // do not use if ninjutsu charges would overcap during
                     && state.CD(CDGroup.Ten) > state.GCD + 3
+                    && state.Unlocked(AID.TenChiJin)
                     && state.CanWeave(CDGroup.TenChiJin, 0.6f, deadline)
                 )
                     return ActionID.MakeSpell(AID.TenChiJin);
@@ -308,40 +316,73 @@ namespace BossMod.NIN
             return new();
         }
 
+        public static (Positional, bool) GetNextPositional(State state, Strategy strategy)
+        {
+            if (strategy.NumPointBlankAOETargets >= 3 || !state.Unlocked(AID.TrickAttack))
+                return (Positional.Any, false);
+
+            if (state.Hidden)
+                return (Positional.Rear, false);
+
+            if (!state.Unlocked(AID.AeolianEdge))
+                return (Positional.Any, false);
+
+            return state.ComboLastMove switch
+            {
+                AID.GustSlash => (Positional.Rear, true),
+                _ => (Positional.Rear, false)
+            };
+        }
+
         private static bool PerformNinjutsu(State state, AID ninjutsu, out AID act)
         {
             act = AID.None;
 
-            if (!state.Unlocked(ninjutsu) || (state.Mudra.Left == 0 && state.NextMudraCD > state.GCD))
+            if (!state.Unlocked(ninjutsu) || (!state.InCombo && state.NextMudraCD > state.GCD))
                 return false;
+
+            // katon and raiton are our two most used filler ninjutsu and they can both start with jin, but there's a 10 level span where
+            // jin isn't unlocked yet
+            var jinDowngrade = AID.Jin;
+            if (!state.Unlocked(AID.Jin))
+            {
+                if (ninjutsu == AID.Katon)
+                    jinDowngrade = AID.Chi;
+                else if (ninjutsu == AID.Raiton)
+                    jinDowngrade = AID.Ten;
+            }
 
             var kass = state.KassatsuLeft > state.GCD;
 
             act = Combos.GetNextAction(ninjutsu, state.Mudra.Combo) switch
             {
-                AID.None => AID.RabbitMedium,
-                AID.Hyoton => kass ? AID.HyoshoRanryu : AID.Hyoton,
-                AID.Katon => kass ? AID.GokaMekkyaku : AID.Katon,
+                AID.Hyoton => kass && state.Unlocked(AID.HyoshoRanryu) ? AID.HyoshoRanryu : AID.Hyoton,
+                AID.Katon => kass && state.Unlocked(AID.GokaMekkyaku) ? AID.GokaMekkyaku : AID.Katon,
                 AID.Ten => kass ? AID.Ten2 : AID.Ten,
                 AID.Chi => kass ? AID.Chi2 : AID.Chi,
-                AID.Jin => kass ? AID.Jin2 : AID.Jin,
+                AID.Jin => kass ? AID.Jin2 : jinDowngrade,
                 var x => x
             };
 
-            if (act == AID.RabbitMedium)
+            if (act == AID.None)
+            {
+                // TODO implement throttling, this prints every frame which is annoying
                 Service.Log($"error - broken combo: wanted {ninjutsu} (combo state: {state.Mudra.Combo})");
+                act = state.CurrentNinjutsu;
+            }
 
             return true;
         }
 
-        private static bool ShouldUseDamageNinjutsu(State state, Strategy strategy)
+        // TODO: this function sucks...we need to pool ninjutsu for burst windows in boss fights, but in basically every other situation, including fighting single enemies in the overworld, we just want to use them on cooldown
+        public static bool ShouldUseDamageNinjutsu(State state, Strategy strategy)
         {
             // target is out of range
             if (state.RangeToTarget > 25)
                 return false;
 
             // when fighting packs in dungeons, or if we don't have access to suiton, use all mudra charges
-            if (strategy.UseAOERotation || !state.Unlocked(AID.Suiton))
+            if (strategy.NumKatonTargets >= 3 || !state.Unlocked(AID.Suiton))
                 return true;
 
             // spam raiton in trick windows
@@ -353,7 +394,7 @@ namespace BossMod.NIN
                 return true;
 
             // prevent charge overcap (TODO: make sure we are saving for trick) (note that the first mudra use increases the cooldown by 20s)
-            if (state.CD(CDGroup.Ten) < (state.Mudra.Left > 0 ? 25 : 5))
+            if (state.CD(CDGroup.Ten) < (state.InCombo ? 25 : 5))
                 return true;
 
             // if a conditional flipped while we were in the middle of a combo, finish the combo anyway; some cases where this can happen:
@@ -361,13 +402,15 @@ namespace BossMod.NIN
             // * maybe some others idk lol. kassatsu expire?
             // if (state.Mudra.Left > 0)
             //     return true;
+            if (state.KassatsuLeft > 0 && state.KassatsuLeft <= state.AttackGCDTime)
+                return true;
 
             return false;
         }
 
         private static bool ShouldUseMug(State state, Strategy strategy)
         {
-            if (!state.Unlocked(AID.Mug) || strategy.UseAOERotation)
+            if (!state.Unlocked(AID.Mug))
                 return false;
 
             if (strategy.CombatTimer < 30)
@@ -380,11 +423,13 @@ namespace BossMod.NIN
         {
             var canTrick = strategy.CombatTimer > 0 ? state.SuitonLeft > 0 : state.Hidden;
 
-            if (!state.Unlocked(AID.TrickAttack) || !canTrick || strategy.UseAOERotation)
+            if (!state.Unlocked(AID.TrickAttack) || !canTrick || state.TargetTrickLeft > 0)
                 return false;
 
             if (strategy.CombatTimer < 30)
-                return state.CD(CDGroup.Mug) > 0 && state.CD(CDGroup.Bunshin) > 0 && state.GCD > 0.800;
+                return state.CD(CDGroup.Mug) > 0
+                    && (state.CD(CDGroup.Bunshin) > 0 || !state.Unlocked(AID.Bunshin))
+                    && state.GCD > 0.800;
 
             return true;
         }
@@ -394,7 +439,7 @@ namespace BossMod.NIN
             if (!state.Unlocked(AID.Bunshin) || state.Ninki < 50)
                 return false;
 
-            if (strategy.CombatTimer < 30 && !strategy.UseAOERotation)
+            if (strategy.CombatTimer < 30 && strategy.NumKatonTargets < 3)
                 return state.TargetMugLeft > 0;
 
             return true;
@@ -408,11 +453,11 @@ namespace BossMod.NIN
             if (state.TargetTrickLeft > 0)
                 return state.CD(CDGroup.Meisui) > 0 || !state.Unlocked(AID.Meisui);
 
-            return state.Ninki >= (strategy.UseAOERotation ? 50 : 90);
+            return state.Ninki >= (strategy.NumFrogTargets > 2 ? 50 : 90);
         }
 
         private static bool ShouldUseSuiton(State state, Strategy strategy) =>
-            !strategy.UseAOERotation
+            strategy.NumKatonTargets < 3
             && state.Unlocked(AID.Suiton)
             && state.SuitonLeft == 0
             // TODO is 20 too long? this gives us 3.5 seconds of trick being off cd

@@ -79,8 +79,6 @@ namespace BossMod.NIN
         ShadowForkedRaiju = 25878, // L90, instant, 0.0s CD (group 3), range 100, single-target 0/0, targets=hostile, animLock=???
         ShadowFleetingRaiju = 25879, // L90, instant, 0.0s CD (group 3), range 100, single-target 0/0, targets=hostile, animLock=???
         HollowNozuchi = 25776, // L86, instant, 0.0s CD (group 3), range 100, AOE circle 5/0, targets=self/area/!dead, animLock=???
-
-        Unhide_DO_NOT_USE = 999999
     }
 
     public enum TraitID : uint

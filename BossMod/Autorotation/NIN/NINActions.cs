@@ -1,4 +1,7 @@
 using System;
+using System.Linq;
+using System.Runtime.InteropServices;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.JobGauge.Types;
 
 namespace BossMod.NIN
@@ -13,6 +16,11 @@ namespace BossMod.NIN
         private Rotation.Strategy _strategy;
 
         private WPos _lastDotonPos;
+
+        private bool _mudraDebounce;
+
+        private delegate byte ExecuteCommandDelegate(int id, uint statusId, uint unk1, uint sourceId, int unk2);
+        private readonly ExecuteCommandDelegate ExecuteCommand;
 
         public Actions(Autorotation autorot, Actor player)
             : base(autorot, player, Definitions.UnlockQuests, Definitions.SupportedActions)
@@ -31,6 +39,8 @@ namespace BossMod.NIN
 
             _config.Modified += OnConfigModified;
             OnConfigModified(null, EventArgs.Empty);
+
+            ExecuteCommand = Marshal.GetDelegateForFunctionPointer<ExecuteCommandDelegate>(Service.SigScanner.ScanText("E8 ?? ?? ?? ?? 8D 43 0A"));
         }
 
         public override CommonRotation.PlayerState GetState() => _state;
@@ -44,27 +54,20 @@ namespace BossMod.NIN
 
         protected override NextAction CalculateAutomaticGCD()
         {
-            if (AutoAction < AutoActionAIFight)
-                return new();
-
             if (_strategy.CombatTimer < 0 && _strategy.AutoUnhide && _state.Hidden)
                 StatusOff((uint)SID.Hidden);
 
+            // use huton out of combat in duties, but don't do it in overworld (it's annoying)
+            var shouldAutoGcd =
+                AutoAction >= AutoActionAIFight
+                || AutoAction == AutoActionAIIdle
+                    && (Service.Condition[ConditionFlag.BoundByDuty] || Service.Condition[ConditionFlag.BoundByDuty56]);
+
+            if (!shouldAutoGcd)
+                return new();
+
             var aid = Rotation.GetNextBestGCD(_state, _strategy);
-
             return MakeResult(aid, Autorot.PrimaryTarget);
-        }
-
-        private unsafe void StatusOff(uint sid)
-        {
-            var obj = Service.ObjectTable[Player.SpawnIndex] as Dalamud.Game.ClientState.Objects.Types.BattleChara;
-            if (obj == null)
-                return;
-            var man = (FFXIVClientStructs.FFXIV.Client.Game.StatusManager*)obj.StatusList.Address;
-            var stat = man->GetStatusIndex(sid);
-            if (stat < 0)
-                return;
-            man->RemoveStatus(stat);
         }
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
@@ -91,19 +94,21 @@ namespace BossMod.NIN
                     ?.ActiveStrategyOverrides(Autorot.Bossmods.ActiveModule.StateMachine) ?? new uint[0]
             );
 
+            FillStrategyPositionals(
+                _strategy,
+                Rotation.GetNextPositional(_state, _strategy),
+                _state.TrueNorthLeft > _state.GCD
+            );
+
             _strategy.NumPointBlankAOETargets =
                 autoAction == AutoActionST ? 0 : Autorot.Hints.NumPriorityTargetsInAOECircle(Player.Position, 5);
-            _strategy.NumKatonTargets =
-                autoAction == AutoActionST || Autorot.PrimaryTarget == null
-                    ? 0
-                    : Autorot.Hints.NumPriorityTargetsInAOECircle(Autorot.PrimaryTarget.Position, 5);
+            _strategy.NumKatonTargets = autoAction == AutoActionST || Autorot.PrimaryTarget == null ? 0 : NumKatonTargets(Autorot.PrimaryTarget);
             _strategy.NumFrogTargets =
                 autoAction == AutoActionST || Autorot.PrimaryTarget == null
                     ? 0
                     : Autorot.Hints.NumPriorityTargetsInAOECircle(Autorot.PrimaryTarget.Position, 6);
             _strategy.NumTargetsInDoton =
                 _state.DotonLeft > 0 ? Autorot.Hints.NumPriorityTargetsInAOECircle(_lastDotonPos, 5) : 0;
-            _strategy.UseAOERotation = autoAction == AutoActionAOE;
         }
 
         private void UpdatePlayerState()
@@ -114,12 +119,12 @@ namespace BossMod.NIN
             _state.HutonLeft = gauge.HutonTimer / 1000f;
             _state.Ninki = gauge.Ninki;
 
-            // bypass pending status check for mudras because it takes 3 seconds to finalize, so 3-action mudras time out
-            var stat = Player.FindStatus(SID.Mudra, Player.InstanceID);
-            if (stat == null)
-                _state.Mudra = (0, 0);
+            _state.Mudra = StatusDetails(Player, SID.Mudra, Player.InstanceID, 0);
+            if (_state.Mudra == (0, 0) && _mudraDebounce)
+                // combo param doesn't matter here, it is updated to the correct value long before next GCD
+                _state.Mudra.Left = 1000;
             else
-                _state.Mudra = (StatusDuration(stat.Value.ExpireAt), stat.Value.Extra & 0xFF);
+                _mudraDebounce = false;
 
             _state.TenChiJin = StatusDetails(Player, SID.TenChiJin, Player.InstanceID);
             _state.Bunshin = StatusDetails(Player, SID.Bunshin, Player.InstanceID);
@@ -132,7 +137,23 @@ namespace BossMod.NIN
             _state.Hidden = StatusDetails(Player, SID.Hidden, Player.InstanceID).Stacks > 0;
             _state.KamaitachiLeft = StatusDetails(Player, SID.PhantomKamaitachiReady, Player.InstanceID).Left;
             _state.TargetMugLeft = StatusDetails(Autorot.PrimaryTarget, SID.VulnerabilityUp, Player.InstanceID).Left;
-            _state.TargetTrickLeft = StatusDetails(Autorot.PrimaryTarget, SID.TrickAttack, Player.InstanceID).Left;
+
+            // multi ninja shenanigans - trick does not stack
+            var trickAny = Autorot.PrimaryTarget?.FindStatus((uint)SID.TrickAttack);
+            if (trickAny != null)
+                _state.TargetTrickLeft = StatusDuration(trickAny.Value.ExpireAt);
+
+            _state.TrueNorthLeft = StatusDetails(Player, SID.TrueNorth, Player.InstanceID).Left;
+        }
+
+        protected override void OnActionExecuted(ClientActionRequest request)
+        {
+            // prevent instant auto hide if the user inputs a mudra manually
+            // the mudra CD (which is how we check for missing charges) increases before the status is applied, even the pending one
+            if ((AID)request.Action.ID is AID.Ten or AID.Chi or AID.Jin)
+                _mudraDebounce = true;
+
+            base.OnActionExecuted(request);
         }
 
         protected override void OnActionSucceeded(ActorCastEvent ev)
@@ -144,25 +165,50 @@ namespace BossMod.NIN
             base.OnActionSucceeded(ev);
         }
 
+        public override Targeting SelectBetterTarget(AIHints.Enemy initial)
+        {
+            float neededRange;
+
+            if (_state.HutonLeft == 0 && _state.Unlocked(AID.Huraijin))
+                neededRange = 3;
+            else if (Rotation.ShouldUseDamageNinjutsu(_state, _strategy) && _state.CD(CDGroup.Ten) <= 20)
+                neededRange = 20;
+            else
+                neededRange = 3;
+
+            var newBest = FindBetterTargetBy(initial, 20, e => NumKatonTargets(e.Actor)).Target;
+
+            return new(newBest, neededRange);
+        }
+
+        private int NumKatonTargets(Actor actor) => Autorot.Hints.NumPriorityTargetsInAOECircle(actor.Position, 6);
+
         protected override void QueueAIActions()
         {
+            bool useAIActions = !_state.InCombo;
             if (_state.Unlocked(AID.SecondWind))
                 SimulateManualActionForAI(
                     ActionID.MakeSpell(AID.SecondWind),
                     Player,
-                    Player.InCombat && Player.HP.Cur < Player.HP.Max * 0.5f
+                    Player.InCombat && Player.HP.Cur < Player.HP.Max * 0.5f && useAIActions
                 );
             if (_state.Unlocked(AID.Bloodbath))
                 SimulateManualActionForAI(
                     ActionID.MakeSpell(AID.Bloodbath),
                     Player,
-                    Player.InCombat && Player.HP.Cur < Player.HP.Max * 0.8f
+                    Player.InCombat && Player.HP.Cur < Player.HP.Max * 0.8f && useAIActions
                 );
             if (_state.Unlocked(AID.ShadeShift))
                 SimulateManualActionForAI(
                     ActionID.MakeSpell(AID.ShadeShift),
                     Player,
-                    Player.InCombat && Player.HP.Cur < Player.HP.Max * 0.8f
+                    Player.InCombat && Player.HP.Cur < Player.HP.Max * 0.8f && useAIActions
+                );
+            if (_state.Unlocked(AID.Ten))
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.Hide),
+                    Player,
+                    !Player.InCombat && _state.CD(CDGroup.Ten) > 0 && useAIActions
                 );
         }
 
@@ -173,6 +219,18 @@ namespace BossMod.NIN
 
             _strategy.AutoHide = _config.AutoHide;
             _strategy.AutoUnhide = _config.AutoUnhide;
+        }
+
+        private unsafe void StatusOff(uint sid)
+        {
+            var p = Service.ObjectTable[Player.SpawnIndex] as Dalamud.Game.ClientState.Objects.Types.BattleChara;
+            if (p == null)
+                return;
+            var s = (FFXIVClientStructs.FFXIV.Client.Game.StatusManager*)p.StatusList.Address;
+            var i = s->GetStatusIndex(sid);
+            if (i < 0)
+                return;
+            ExecuteCommand(104, sid, 0, s->GetSourceId(i), 0);
         }
     }
 }
