@@ -3,6 +3,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.JobGauge.Types;
+using Dalamud.Game.ClientState.Objects.Types;
 
 namespace BossMod.NIN
 {
@@ -40,7 +41,9 @@ namespace BossMod.NIN
             _config.Modified += OnConfigModified;
             OnConfigModified(null, EventArgs.Empty);
 
-            ExecuteCommand = Marshal.GetDelegateForFunctionPointer<ExecuteCommandDelegate>(Service.SigScanner.ScanText("E8 ?? ?? ?? ?? 8D 43 0A"));
+            ExecuteCommand = Marshal.GetDelegateForFunctionPointer<ExecuteCommandDelegate>(
+                Service.SigScanner.ScanText("E8 ?? ?? ?? ?? 8D 43 0A")
+            );
         }
 
         public override CommonRotation.PlayerState GetState() => _state;
@@ -100,15 +103,21 @@ namespace BossMod.NIN
                 _state.TrueNorthLeft > _state.GCD
             );
 
-            _strategy.NumPointBlankAOETargets =
-                autoAction == AutoActionST ? 0 : Autorot.Hints.NumPriorityTargetsInAOECircle(Player.Position, 5);
-            _strategy.NumKatonTargets = autoAction == AutoActionST || Autorot.PrimaryTarget == null ? 0 : NumKatonTargets(Autorot.PrimaryTarget);
+            var isSTMode =
+                autoAction == AutoActionST || (autoAction == AutoActionAIFight && IsBoss(Autorot.PrimaryTarget));
+
+            _strategy.NumPointBlankAOETargets = isSTMode
+                ? 0
+                : Autorot.Hints.NumPriorityTargetsInAOECircle(Player.Position, 5);
+            _strategy.NumKatonTargets =
+                isSTMode || Autorot.PrimaryTarget == null ? 0 : NumKatonTargets(Autorot.PrimaryTarget);
             _strategy.NumFrogTargets =
-                autoAction == AutoActionST || Autorot.PrimaryTarget == null
+                isSTMode || Autorot.PrimaryTarget == null
                     ? 0
                     : Autorot.Hints.NumPriorityTargetsInAOECircle(Autorot.PrimaryTarget.Position, 6);
             _strategy.NumTargetsInDoton =
                 _state.DotonLeft > 0 ? Autorot.Hints.NumPriorityTargetsInAOECircle(_lastDotonPos, 5) : 0;
+            _strategy.UseAOERotation = !isSTMode;
         }
 
         private void UpdatePlayerState()
@@ -136,12 +145,11 @@ namespace BossMod.NIN
             _state.MeisuiLeft = StatusDetails(Player, SID.Meisui, Player.InstanceID).Left;
             _state.Hidden = StatusDetails(Player, SID.Hidden, Player.InstanceID).Stacks > 0;
             _state.KamaitachiLeft = StatusDetails(Player, SID.PhantomKamaitachiReady, Player.InstanceID).Left;
-            _state.TargetMugLeft = StatusDetails(Autorot.PrimaryTarget, SID.VulnerabilityUp, Player.InstanceID).Left;
 
-            // multi ninja shenanigans - trick does not stack
-            var trickAny = Autorot.PrimaryTarget?.FindStatus((uint)SID.TrickAttack);
-            if (trickAny != null)
-                _state.TargetTrickLeft = StatusDuration(trickAny.Value.ExpireAt);
+            var mugAny = Autorot.PrimaryTarget?.FindStatus((uint)SID.VulnerabilityUp);
+            if (mugAny != null)
+                _state.TargetMugLeft = StatusDuration(mugAny.Value.ExpireAt);
+            _state.TargetTrickLeft = StatusDetails(Autorot.PrimaryTarget, SID.TrickAttack, Player.InstanceID).Left;
 
             _state.TrueNorthLeft = StatusDetails(Player, SID.TrueNorth, Player.InstanceID).Left;
         }
@@ -176,7 +184,7 @@ namespace BossMod.NIN
             else
                 neededRange = 3;
 
-            var newBest = FindBetterTargetBy(initial, 20, e => NumKatonTargets(e.Actor)).Target;
+            (var newBest, var tars) = FindBetterTargetBy(initial, 20, e => NumKatonTargets(e.Actor));
 
             return new(newBest, neededRange);
         }
@@ -219,6 +227,19 @@ namespace BossMod.NIN
 
             _strategy.AutoHide = _config.AutoHide;
             _strategy.AutoUnhide = _config.AutoUnhide;
+        }
+
+        private static bool IsBoss(Actor? tar)
+        {
+            if (tar == null)
+                return false;
+            var tarObject = Service.ObjectTable[tar.SpawnIndex] as BattleChara;
+            if (tarObject == null)
+                return false;
+            // striking dummy
+            if (tarObject.NameId == 541)
+                return true;
+            return Service.LuminaRow<Lumina.Excel.GeneratedSheets.BNpcBase>(tarObject.DataId)?.Rank is 1 or 2 or 6;
         }
 
         private unsafe void StatusOff(uint sid)

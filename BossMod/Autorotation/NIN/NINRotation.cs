@@ -108,6 +108,11 @@ namespace BossMod.NIN
             public int NumFrogTargets;
             public int NumTargetsInDoton;
 
+            // not equivalent to "num aoe targets >= 3"; for AI mode, we want to avoid using ST buff actions on trash mobs even if they're alone (i.e. quest targets)
+            // not only because suiton -> trick is slow, but because those charges could more profitably be spent on raiton
+            public bool UseAOERotation;
+
+
             public void ApplyStrategyOverrides(uint[] overrides) { }
 
             public override string ToString()
@@ -153,11 +158,16 @@ namespace BossMod.NIN
             if (state.HutonLeft == 0)
                 if (state.Unlocked(AID.Huraijin))
                     return AID.Huraijin;
-                else if (PerformNinjutsu(state, AID.Huton, out act))
+                else if (state.KassatsuLeft == 0 && PerformNinjutsu(state, AID.Huton, out act))
                     return act;
 
             // low level huton refresh
-            if (!state.Unlocked(AID.ArmorCrush) && state.HutonLeft < 5 && PerformNinjutsu(state, AID.Huton, out act))
+            if (
+                !state.Unlocked(AID.ArmorCrush)
+                && state.HutonLeft < 5
+                && state.KassatsuLeft == 0
+                && PerformNinjutsu(state, AID.Huton, out act)
+            )
                 return act;
 
             // spending charges on suiton + trick on dungeon packs is generally a potency loss
@@ -269,7 +279,10 @@ namespace BossMod.NIN
             )
                 return ActionID.MakeSpell(AID.Kassatsu);
 
-            if (state.TargetTrickLeft > 0 || strategy.NumPointBlankAOETargets >= 3)
+            // we might use trick on an add or something, after which assassinate should still be used even if we switch targets (because it's a waste of a cd otherwise)
+            // (ideally shouldn't be using trick on adds but whatever)
+            // trick cd (60) - duration (15) = 45
+            if (state.CD(CDGroup.TrickAttack) >= 45 || strategy.UseAOERotation)
             {
                 // these two have a different cdgroup for some reason
                 if (state.Unlocked(AID.DreamWithinADream))
@@ -292,7 +305,11 @@ namespace BossMod.NIN
                 )
                     return ActionID.MakeSpell(AID.TenChiJin);
 
-                if (state.SuitonLeft > state.GCD && state.CanWeave(CDGroup.Meisui, 0.6f, deadline))
+                if (
+                    state.SuitonLeft > state.GCD
+                    && state.Unlocked(AID.Meisui)
+                    && state.CanWeave(CDGroup.Meisui, 0.6f, deadline)
+                )
                     return ActionID.MakeSpell(AID.Meisui);
             }
 
@@ -382,7 +399,7 @@ namespace BossMod.NIN
                 return false;
 
             // when fighting packs in dungeons, or if we don't have access to suiton, use all mudra charges
-            if (strategy.NumKatonTargets >= 3 || !state.Unlocked(AID.Suiton))
+            if (strategy.UseAOERotation || !state.Unlocked(AID.Suiton))
                 return true;
 
             // spam raiton in trick windows
@@ -410,7 +427,7 @@ namespace BossMod.NIN
 
         private static bool ShouldUseMug(State state, Strategy strategy)
         {
-            if (!state.Unlocked(AID.Mug))
+            if (!state.Unlocked(AID.Mug) || state.TargetMugLeft > 0)
                 return false;
 
             if (strategy.CombatTimer < 30)
@@ -423,7 +440,7 @@ namespace BossMod.NIN
         {
             var canTrick = strategy.CombatTimer > 0 ? state.SuitonLeft > 0 : state.Hidden;
 
-            if (!state.Unlocked(AID.TrickAttack) || !canTrick || state.TargetTrickLeft > 0)
+            if (!state.Unlocked(AID.TrickAttack) || !canTrick || strategy.UseAOERotation)
                 return false;
 
             if (strategy.CombatTimer < 30)
@@ -439,7 +456,7 @@ namespace BossMod.NIN
             if (!state.Unlocked(AID.Bunshin) || state.Ninki < 50)
                 return false;
 
-            if (strategy.CombatTimer < 30 && strategy.NumKatonTargets < 3)
+            if (strategy.CombatTimer < 30 && !strategy.UseAOERotation)
                 return state.TargetMugLeft > 0;
 
             return true;
@@ -447,7 +464,7 @@ namespace BossMod.NIN
 
         private static bool ShouldUseBhava(State state, Strategy strategy)
         {
-            if (!state.Unlocked(AID.Bhavacakra) || state.Ninki < 50)
+            if (!state.Unlocked(AID.HellfrogMedium) || state.Ninki < 50)
                 return false;
 
             if (state.TargetTrickLeft > 0)
@@ -457,7 +474,7 @@ namespace BossMod.NIN
         }
 
         private static bool ShouldUseSuiton(State state, Strategy strategy) =>
-            strategy.NumKatonTargets < 3
+            !strategy.UseAOERotation
             && state.Unlocked(AID.Suiton)
             && state.SuitonLeft == 0
             // TODO is 20 too long? this gives us 3.5 seconds of trick being off cd
