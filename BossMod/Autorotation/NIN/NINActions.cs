@@ -64,6 +64,8 @@ namespace BossMod.NIN
             var shouldAutoGcd =
                 AutoAction >= AutoActionAIFight
                 || AutoAction == AutoActionAIIdle
+                    // todo: should be skipped if duty complete (IDutyState.DutyCompleted) since we have nothing else to do
+                    // but that needs to be added on the framework level
                     && (Service.Condition[ConditionFlag.BoundByDuty] || Service.Condition[ConditionFlag.BoundByDuty56]);
 
             if (!shouldAutoGcd)
@@ -149,6 +151,8 @@ namespace BossMod.NIN
             var mugAny = Autorot.PrimaryTarget?.FindStatus((uint)SID.VulnerabilityUp);
             if (mugAny != null)
                 _state.TargetMugLeft = StatusDuration(mugAny.Value.ExpireAt);
+            else
+                _state.TargetMugLeft = 0;
             _state.TargetTrickLeft = StatusDetails(Autorot.PrimaryTarget, SID.TrickAttack, Player.InstanceID).Left;
 
             _state.TrueNorthLeft = StatusDetails(Player, SID.TrueNorth, Player.InstanceID).Left;

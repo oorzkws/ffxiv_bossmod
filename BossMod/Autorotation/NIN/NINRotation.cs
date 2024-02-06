@@ -76,6 +76,8 @@ namespace BossMod.NIN
                     _ => 3
                 };
 
+            public bool IsTrickActive => CD(CDGroup.TrickAttack) >= 45;
+
             private static readonly string[] MudraNames = ["", "Ten", "Chi", "Jin"];
 
             public static string ShowMudra(int combo)
@@ -111,7 +113,6 @@ namespace BossMod.NIN
             // not equivalent to "num aoe targets >= 3"; for AI mode, we want to avoid using ST buff actions on trash mobs even if they're alone (i.e. quest targets)
             // not only because suiton -> trick is slow, but because those charges could more profitably be spent on raiton
             public bool UseAOERotation;
-
 
             public void ApplyStrategyOverrides(uint[] overrides) { }
 
@@ -275,6 +276,7 @@ namespace BossMod.NIN
                 strategy.CombatTimer > -1
                 && state.CanWeave(CDGroup.Kassatsu, 0.6f, deadline)
                 && !ShouldUseSuiton(state, strategy)
+                && state.RangeToTarget <= 20
                 && state.Unlocked(AID.Kassatsu)
             )
                 return ActionID.MakeSpell(AID.Kassatsu);
@@ -282,7 +284,7 @@ namespace BossMod.NIN
             // we might use trick on an add or something, after which assassinate should still be used even if we switch targets (because it's a waste of a cd otherwise)
             // (ideally shouldn't be using trick on adds but whatever)
             // trick cd (60) - duration (15) = 45
-            if (state.CD(CDGroup.TrickAttack) >= 45 || strategy.UseAOERotation)
+            if (state.IsTrickActive || strategy.UseAOERotation)
             {
                 // these two have a different cdgroup for some reason
                 if (state.Unlocked(AID.DreamWithinADream))
@@ -344,11 +346,17 @@ namespace BossMod.NIN
             if (!state.Unlocked(AID.AeolianEdge))
                 return (Positional.Any, false);
 
-            return state.ComboLastMove switch
+            var gcdsInAdvance = state.ComboLastMove switch
             {
-                AID.GustSlash => (Positional.Rear, true),
-                _ => (Positional.Rear, false)
+                AID.GustSlash => 0,
+                AID.SpinningEdge => 1,
+                _ => 2
             };
+
+            var shouldCrush =
+                state.Unlocked(AID.ArmorCrush) && state.HutonLeft < 30 + (state.AttackGCDTime * gcdsInAdvance);
+
+            return (shouldCrush ? Positional.Flank : Positional.Rear, gcdsInAdvance == 0);
         }
 
         private static bool PerformNinjutsu(State state, AID ninjutsu, out AID act)
@@ -403,7 +411,7 @@ namespace BossMod.NIN
                 return true;
 
             // spam raiton in trick windows
-            if (state.TargetTrickLeft > state.GCD && state.Bunshin.Stacks < 5)
+            if (state.IsTrickActive && state.Bunshin.Stacks < 5)
                 return true;
 
             // for opener. TODO this is a hack, figure out a better condition for it, something to do with ninjutsu CD
@@ -419,7 +427,7 @@ namespace BossMod.NIN
             // * maybe some others idk lol. kassatsu expire?
             // if (state.Mudra.Left > 0)
             //     return true;
-            if (state.KassatsuLeft > 0 && state.KassatsuLeft <= state.AttackGCDTime)
+            if (state.KassatsuLeft > state.GCD && state.KassatsuLeft < state.GCD + state.AttackGCDTime)
                 return true;
 
             return false;
@@ -430,7 +438,7 @@ namespace BossMod.NIN
             if (!state.Unlocked(AID.Mug) || state.TargetMugLeft > 0)
                 return false;
 
-            if (strategy.CombatTimer < 30)
+            if (strategy.CombatTimer < 10)
                 return state.ComboLastMove == AID.GustSlash;
 
             return true;
@@ -443,7 +451,7 @@ namespace BossMod.NIN
             if (!state.Unlocked(AID.TrickAttack) || !canTrick || strategy.UseAOERotation)
                 return false;
 
-            if (strategy.CombatTimer < 30)
+            if (strategy.CombatTimer < 10)
                 return state.CD(CDGroup.Mug) > 0
                     && (state.CD(CDGroup.Bunshin) > 0 || !state.Unlocked(AID.Bunshin))
                     && state.GCD > 0.800;
@@ -456,7 +464,7 @@ namespace BossMod.NIN
             if (!state.Unlocked(AID.Bunshin) || state.Ninki < 50)
                 return false;
 
-            if (strategy.CombatTimer < 30 && !strategy.UseAOERotation)
+            if (strategy.CombatTimer < 10 && !strategy.UseAOERotation)
                 return state.TargetMugLeft > 0;
 
             return true;
@@ -467,7 +475,7 @@ namespace BossMod.NIN
             if (!state.Unlocked(AID.HellfrogMedium) || state.Ninki < 50)
                 return false;
 
-            if (state.TargetTrickLeft > 0)
+            if (state.IsTrickActive)
                 return state.CD(CDGroup.Meisui) > 0 || !state.Unlocked(AID.Meisui);
 
             return state.Ninki >= (strategy.NumFrogTargets > 2 ? 50 : 90);
@@ -477,6 +485,7 @@ namespace BossMod.NIN
             !strategy.UseAOERotation
             && state.Unlocked(AID.Suiton)
             && state.SuitonLeft == 0
+            && state.KassatsuLeft == 0
             // TODO is 20 too long? this gives us 3.5 seconds of trick being off cd
             && state.CD(CDGroup.TrickAttack) < 20;
 
