@@ -95,7 +95,7 @@ namespace BossMod.NIN
 
             public override string ToString()
             {
-                return $"M={ShowMudra(Mudra.Combo)}/{Mudra.Left:f2}, PotCD={PotionCD:f3}, GCD={GCD:f3}, ALock={AnimationLock:f3}+{AnimationLockDelay:f3}, lvl={Level}/{UnlockProgress}";
+                return $"M={ShowMudra(Mudra.Combo)}/{Mudra.Left:f2} (CD {CD(CDGroup.Ten)}), B={Bunshin.Stacks}/{Bunshin.Left}, K={KassatsuLeft}, Trick={TargetTrickLeft}, Mug={TargetMugLeft}, PotCD={PotionCD:f3}, GCD={GCD:f3}, ALock={AnimationLock:f3}+{AnimationLockDelay:f3}, lvl={Level}/{UnlockProgress}";
             }
         }
 
@@ -248,7 +248,7 @@ namespace BossMod.NIN
                     // TODO: flank armor crush is 420 vs flank aeolian 380
                     // also don't need to refresh armor crush at exactly 29s if we aren't on flank, since 30s is a long
                     // time and aeolian is higher potency
-                    return state.HutonLeft < 30 && state.Unlocked(AID.ArmorCrush) ? AID.ArmorCrush : AID.AeolianEdge;
+                    return ShouldUseCrush(state, strategy, state.GCD) ? AID.ArmorCrush : AID.AeolianEdge;
 
                 if (state.ComboLastMove == AID.SpinningEdge && state.Unlocked(AID.GustSlash))
                     return AID.GustSlash;
@@ -353,10 +353,12 @@ namespace BossMod.NIN
                 _ => 2
             };
 
-            var shouldCrush =
-                state.Unlocked(AID.ArmorCrush) && state.HutonLeft < 30 + (state.AttackGCDTime * gcdsInAdvance);
-
-            return (shouldCrush ? Positional.Flank : Positional.Rear, gcdsInAdvance == 0);
+            return (
+                ShouldUseCrush(state, strategy, state.GCD + (state.AttackGCDTime * gcdsInAdvance))
+                    ? Positional.Flank
+                    : Positional.Rear,
+                gcdsInAdvance == 0
+            );
         }
 
         private static bool PerformNinjutsu(State state, AID ninjutsu, out AID act)
@@ -478,7 +480,7 @@ namespace BossMod.NIN
             if (state.IsTrickActive)
                 return state.CD(CDGroup.Meisui) > 0 || !state.Unlocked(AID.Meisui);
 
-            return state.Ninki >= (strategy.NumFrogTargets > 2 ? 50 : 90);
+            return state.Ninki >= (strategy.UseAOERotation ? 50 : 90);
         }
 
         private static bool ShouldUseSuiton(State state, Strategy strategy) =>
@@ -488,6 +490,9 @@ namespace BossMod.NIN
             && state.KassatsuLeft == 0
             // TODO is 20 too long? this gives us 3.5 seconds of trick being off cd
             && state.CD(CDGroup.TrickAttack) < 20;
+
+        private static bool ShouldUseCrush(State state, Strategy strategy, float deadline) =>
+            state.Unlocked(AID.ArmorCrush) && state.HutonLeft - deadline < 30 && state.HutonLeft > deadline;
 
         private static bool HaveTarget(State state, Strategy strategy) =>
             state.TargetingEnemy || strategy.NumPointBlankAOETargets > 0;
