@@ -171,7 +171,7 @@ namespace BossMod.NIN
         protected override void OnActionSucceeded(ActorCastEvent ev)
         {
             // TODO there must be a better way to do this. does doton spawn an object we can look for?
-            if (ev.Action.ID == (uint)AID.Doton)
+            if (ev.Action.ID is (uint)AID.Doton or (uint)AID.TCJDoton)
                 _lastDotonPos = Player.Position;
 
             base.OnActionSucceeded(ev);

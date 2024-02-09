@@ -187,6 +187,7 @@ namespace BossMod.NIN
                 return NextTCJAction(state, strategy);
 
             // emergency huton refresh
+            // this block needs to be moved down because it tends to interrupt other things
             if (state.HutonLeft == 0)
                 if (state.Unlocked(AID.Huraijin))
                     return AID.Huraijin;
@@ -302,6 +303,8 @@ namespace BossMod.NIN
                 && state.CanWeave(CDGroup.TenChiJin, 0.6f, deadline)
                 && state.RangeToTarget <= 20
                 && strategy.ForceMovementIn > deadline + 3
+                && (!strategy.UseAOERotation || strategy.NumKatonTargets >= 3)
+                && state.KassatsuLeft == 0
                 && state.Unlocked(AID.TenChiJin)
             )
                 return ActionID.MakeSpell(AID.TenChiJin);
@@ -518,6 +521,7 @@ namespace BossMod.NIN
             if (state.IsTrickActive)
                 return state.CD(CDGroup.Meisui) > 0 || !state.Unlocked(TraitID.EnhancedMeisui);
 
+            // TODO: don't use if bunshin is about to come off cooldown. idk how to do this in non st mode
             return state.Ninki >= (strategy.UseAOERotation ? 50 : 90);
         }
 
