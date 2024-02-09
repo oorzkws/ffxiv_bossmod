@@ -44,6 +44,13 @@ namespace BossMod.NIN
 
             public AID CurrentNinjutsu => Combos.GetCurrentNinjutsu(Mudra.Combo, KassatsuLeft > 0);
 
+            public AID TCJEnder =>
+                TCJAdjust[0] == AID.None
+                    ? TCJAdjust[1] == AID.None
+                        ? TCJAdjust[2]
+                        : TCJAdjust[1]
+                    : TCJAdjust[0];
+
             private AID[] TCJAdjust
             {
                 get
@@ -76,7 +83,11 @@ namespace BossMod.NIN
                     _ => 3
                 };
 
-            public bool IsTrickActive => CD(CDGroup.TrickAttack) >= 45;
+            // we might use trick on an add or something, after which assassinate should still be used even if we switch targets (because it's a waste of a cd otherwise)
+            // (ideally shouldn't be using trick on adds but whatever)
+            // the actual duration of trick attack is 15.77s
+            public bool IsTrickActive => TargetTrickLeft > 0 || CD(CDGroup.TrickAttack) >= 44.23f;
+            public bool UseSuitonInOpener => Unlocked(AID.Meisui) || !Unlocked(AID.TenChiJin);
 
             private static readonly string[] MudraNames = ["", "Ten", "Chi", "Jin"];
 
@@ -139,13 +150,30 @@ namespace BossMod.NIN
                 )
                     return act;
 
-                if (strategy.CombatTimer > -6 && PerformNinjutsu(state, AID.Suiton, out act))
+                // levels 45-69: suiton in opener to enable trick attack
+                // levels 72-90: same as above, then use TCJ to get another suiton to enable Meisui
+                // levels 70-71: we have TCJ, but the only usable TCJ finishers are Doton (AOE only) and Suiton, so
+                // instead, use Raiton in opener, then immediately cast TCJ to get Suiton, then use Trick
+                if (state.UseSuitonInOpener)
                 {
-                    // delay suiton
-                    if (act == AID.Suiton && strategy.CombatTimer < -1)
-                        return AID.None;
+                    if (strategy.CombatTimer > -6 && PerformNinjutsu(state, AID.Suiton, out act))
+                    {
+                        // delay suiton
+                        if (act == AID.Suiton && strategy.CombatTimer < -1)
+                            return AID.None;
 
-                    return act;
+                        return act;
+                    }
+                }
+                else
+                {
+                    if (strategy.CombatTimer > -5.5 && PerformNinjutsu(state, AID.Raiton, out act))
+                    {
+                        if (act == AID.Raiton && strategy.CombatTimer < -1)
+                            return AID.None;
+
+                        return act;
+                    }
                 }
 
                 if (strategy.CombatTimer > -100)
@@ -154,6 +182,9 @@ namespace BossMod.NIN
 
             if (!HaveTarget(state, strategy))
                 return AID.None;
+
+            if (state.TenChiJin.Left > 0)
+                return NextTCJAction(state, strategy);
 
             // emergency huton refresh
             if (state.HutonLeft == 0)
@@ -177,14 +208,6 @@ namespace BossMod.NIN
 
             if (state.KamaitachiLeft > state.GCD && state.HutonLeft < 50)
                 return AID.PhantomKamaitachi;
-
-            if (state.TenChiJin.Left > 0)
-                return state.TenChiJin.Combo switch
-                {
-                    0 => AID.FumaTen,
-                    1 => AID.TCJRaiton,
-                    _ => AID.TCJSuiton
-                };
 
             if (ShouldUseDamageNinjutsu(state, strategy))
             {
@@ -272,18 +295,27 @@ namespace BossMod.NIN
             )
                 return ActionID.MakeSpell(AID.Hide);
 
+            // early TCJ, levels 70-71 only
             if (
                 strategy.CombatTimer > -1
-                && state.CanWeave(CDGroup.Kassatsu, 0.6f, deadline)
+                && !state.UseSuitonInOpener
+                && state.CanWeave(CDGroup.TenChiJin, 0.6f, deadline)
+                && state.RangeToTarget <= 20
+                && strategy.ForceMovementIn > deadline + 3
+                && state.Unlocked(AID.TenChiJin)
+            )
+                return ActionID.MakeSpell(AID.TenChiJin);
+
+            // otherwise, first weave is kassatsu
+            if (
+                strategy.CombatTimer > -1
                 && !ShouldUseSuiton(state, strategy)
+                && state.CanWeave(CDGroup.Kassatsu, 0.6f, deadline)
                 && state.RangeToTarget <= 20
                 && state.Unlocked(AID.Kassatsu)
             )
                 return ActionID.MakeSpell(AID.Kassatsu);
 
-            // we might use trick on an add or something, after which assassinate should still be used even if we switch targets (because it's a waste of a cd otherwise)
-            // (ideally shouldn't be using trick on adds but whatever)
-            // trick cd (60) - duration (15) = 45
             if (state.IsTrickActive || strategy.UseAOERotation)
             {
                 // these two have a different cdgroup for some reason
@@ -303,6 +335,9 @@ namespace BossMod.NIN
                     // do not use if ninjutsu charges would overcap during
                     && state.CD(CDGroup.Ten) > state.GCD + 3
                     && state.Unlocked(AID.TenChiJin)
+                    // is this that important...
+                    && (!strategy.UseAOERotation || strategy.NumKatonTargets >= 3)
+                    && strategy.ForceMovementIn > deadline + 3
                     && state.CanWeave(CDGroup.TenChiJin, 0.6f, deadline)
                 )
                     return ActionID.MakeSpell(AID.TenChiJin);
@@ -315,6 +350,9 @@ namespace BossMod.NIN
                     return ActionID.MakeSpell(AID.Meisui);
             }
 
+            if (ShouldUseBunshin(state, strategy) && state.CanWeave(CDGroup.Bunshin, 0.6f, deadline))
+                return ActionID.MakeSpell(AID.Bunshin);
+
             if (ShouldUseBhava(state, strategy) && state.CanWeave(CDGroup.HellfrogMedium, 0.6f, deadline))
             {
                 if (!state.Unlocked(AID.Bhavacakra) || strategy.NumFrogTargets >= (state.MeisuiLeft > deadline ? 4 : 3))
@@ -325,9 +363,6 @@ namespace BossMod.NIN
 
             if (ShouldUseMug(state, strategy) && state.CanWeave(CDGroup.Mug, 0.6f, deadline))
                 return ActionID.MakeSpell(AID.Mug);
-
-            if (ShouldUseBunshin(state, strategy) && state.CanWeave(CDGroup.Bunshin, 0.6f, deadline))
-                return ActionID.MakeSpell(AID.Bunshin);
 
             if (ShouldUseTrick(state, strategy) && state.CanWeave(CDGroup.TrickAttack, 0.6f, deadline))
                 return ActionID.MakeSpell(AID.TrickAttack);
@@ -401,9 +436,16 @@ namespace BossMod.NIN
             return true;
         }
 
-        // TODO: this function sucks...we need to pool ninjutsu for burst windows in boss fights, but in basically every other situation, including fighting single enemies in the overworld, we just want to use them on cooldown
+        // TODO this function is still kind of bad at recovering in cases where a ninjutsu condition changed while we were mid cast
         public static bool ShouldUseDamageNinjutsu(State state, Strategy strategy)
         {
+            // if a conditional flipped while we were in the middle of a combo, finish the combo anyway
+            // this can happen if, for example:
+            // * trick expires while casting raiton
+            // * kassatsu expires during hyosho and it becomes hyoton, which we don't want to use
+            if (state.Mudra.Left > 0)
+                return true;
+
             // target is out of range
             if (state.RangeToTarget > 25)
                 return false;
@@ -424,11 +466,7 @@ namespace BossMod.NIN
             if (state.CD(CDGroup.Ten) < (state.InCombo ? 25 : 5))
                 return true;
 
-            // if a conditional flipped while we were in the middle of a combo, finish the combo anyway; some cases where this can happen:
-            // * trick runs out while casting raiton
-            // * maybe some others idk lol. kassatsu expire?
-            // if (state.Mudra.Left > 0)
-            //     return true;
+            // kassatsu'd early
             if (state.KassatsuLeft > state.GCD && state.KassatsuLeft < state.GCD + state.AttackGCDTime)
                 return true;
 
@@ -478,7 +516,7 @@ namespace BossMod.NIN
                 return false;
 
             if (state.IsTrickActive)
-                return state.CD(CDGroup.Meisui) > 0 || !state.Unlocked(AID.Meisui);
+                return state.CD(CDGroup.Meisui) > 0 || !state.Unlocked(TraitID.EnhancedMeisui);
 
             return state.Ninki >= (strategy.UseAOERotation ? 50 : 90);
         }
@@ -496,5 +534,33 @@ namespace BossMod.NIN
 
         private static bool HaveTarget(State state, Strategy strategy) =>
             state.TargetingEnemy || strategy.NumPointBlankAOETargets > 0;
+
+        private static AID NextTCJAction(State state, Strategy strategy)
+        {
+            if (strategy.NumKatonTargets >= 3)
+            {
+                return state.TenChiJin.Combo switch
+                {
+                    // action 1
+                    0 => AID.FumaJin,
+                    // action 2
+                    1 => AID.TCJHyoton,
+                    2 or 3 => AID.TCJKaton,
+                    _ => state.TCJEnder
+                };
+            }
+            else
+            {
+                return state.TenChiJin.Combo switch
+                {
+                    // action 1
+                    0 => AID.FumaTen,
+                    // action 2
+                    1 or 3 => AID.TCJRaiton,
+                    2 => AID.TCJKaton, // only option to avoid finishing on huton
+                    _ => state.TCJEnder
+                };
+            }
+        }
     }
 }
