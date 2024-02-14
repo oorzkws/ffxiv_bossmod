@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace BossMod.Components
 {
-    // generic knockback component; it's a cast counter for convenience
+    // generic knockback/attract component; it's a cast counter for convenience
     public abstract class Knockback : CastCounter
     {
         public enum Kind
@@ -16,32 +16,23 @@ namespace BossMod.Components
             DirRight, // directional knockback - forward along source's direction - 90 degrees
         }
 
-        public struct Source
-        {
-            public WPos Origin;
-            public float Distance;
-            public Angle Direction;
-            public AOEShape? Shape; // if null, assume it is unavoidable raidwide knockback
-            public DateTime Activation;
-            public Kind Kind;
-
-            public Source(WPos origin, float distance, DateTime activation = new(), AOEShape? shape = null, Angle dir = new(), Kind kind = Kind.AwayFromOrigin)
-            {
-                Origin = origin;
-                Distance = distance;
-                Direction = dir;
-                Shape = shape;
-                Activation = activation;
-                Kind = kind;
-            }
-        }
+        public record struct Source(
+            WPos Origin,
+            float Distance,
+            DateTime Activation = default,
+            AOEShape? Shape = null, // if null, assume it is unavoidable raidwide knockback/attract
+            Angle Direction = default, // irrelevant for non-directional knockback/attract
+            Kind Kind = Kind.AwayFromOrigin,
+            float MinDistance = 0 // irrelevant for knockbacks
+        );
 
         protected struct PlayerImmuneState
         {
-            public DateTime ArmsLengthSurecastExpire; // 0 if not active
-            public DateTime InnerStrengthExpire; // 0 if not active
+            public DateTime RoleBuffExpire; // 0 if not active
+            public DateTime JobBuffExpire; // 0 if not active
+            public DateTime DutyBuffExpire; // 0 if not active
 
-            public bool ImmuneAt(DateTime time) => ArmsLengthSurecastExpire > time || InnerStrengthExpire > time;
+            public bool ImmuneAt(DateTime time) => RoleBuffExpire > time || JobBuffExpire > time || DutyBuffExpire > time;
         }
 
         public bool IgnoreImmunes { get; private init; }
@@ -72,10 +63,13 @@ namespace BossMod.Components
         // note: if implementation returns multiple sources, it is assumed they are applied sequentially (so they should be pre-sorted in activation order)
         public abstract IEnumerable<Source> Sources(BossModule module, int slot, Actor actor);
 
+        // called to determine whether we need to show hint
+        public virtual bool DestinationUnsafe(BossModule module, int slot, Actor actor, WPos pos) => !module.Bounds.Contains(pos);
+
         public override void AddHints(BossModule module, int slot, Actor actor, TextHints hints, MovementHints? movementHints)
         {
-            if (CalculateMovements(module, slot, actor).Any(e => !module.Bounds.Contains(e.to)))
-                hints.Add("About to be knocked into wall!");
+            if (CalculateMovements(module, slot, actor).Any(e => DestinationUnsafe(module, slot, actor, e.to)))
+                hints.Add("About to be knocked into danger!");
         }
 
         public override void DrawArenaForeground(BossModule module, int pcSlot, Actor pc, MiniArena arena)
@@ -88,16 +82,23 @@ namespace BossMod.Components
         {
             switch (status.ID)
             {
+                case 3054: //Guard in PVP
                 case (uint)WHM.SID.Surecast:
                 case (uint)WAR.SID.ArmsLength:
                     var slot1 = module.Raid.FindSlot(actor.InstanceID);
                     if (slot1 >= 0)
-                        PlayerImmunes[slot1].ArmsLengthSurecastExpire = status.ExpireAt;
+                        PlayerImmunes[slot1].RoleBuffExpire = status.ExpireAt;
                     break;
+                case 1722: //Bluemage Diamondback
                 case (uint)WAR.SID.InnerStrength:
                     var slot2 = module.Raid.FindSlot(actor.InstanceID);
                     if (slot2 >= 0)
-                        PlayerImmunes[slot2].InnerStrengthExpire = status.ExpireAt;
+                        PlayerImmunes[slot2].JobBuffExpire = status.ExpireAt;
+                    break;
+                case 2345: //Lost Manawall in Bozja
+                    var slot3 = module.Raid.FindSlot(actor.InstanceID);
+                    if (slot3 >= 0)
+                        PlayerImmunes[slot3].DutyBuffExpire = status.ExpireAt;
                     break;
             }
         }
@@ -106,16 +107,23 @@ namespace BossMod.Components
         {
             switch (status.ID)
             {
+                case 3054: //Guard in PVP
                 case (uint)WHM.SID.Surecast:
                 case (uint)WAR.SID.ArmsLength:
                     var slot1 = module.Raid.FindSlot(actor.InstanceID);
                     if (slot1 >= 0)
-                        PlayerImmunes[slot1].ArmsLengthSurecastExpire = new();
+                        PlayerImmunes[slot1].RoleBuffExpire = new();
                     break;
+                case 1722: //Bluemage Diamondback
                 case (uint)WAR.SID.InnerStrength:
                     var slot2 = module.Raid.FindSlot(actor.InstanceID);
                     if (slot2 >= 0)
-                        PlayerImmunes[slot2].InnerStrengthExpire = new();
+                        PlayerImmunes[slot2].JobBuffExpire = new();
+                    break;
+                case 2345: //Lost Manawall in Bozja
+                    var slot3 = module.Raid.FindSlot(actor.InstanceID);
+                    if (slot3 >= 0)
+                        PlayerImmunes[slot3].DutyBuffExpire = new();
                     break;
             }
         }
@@ -136,18 +144,23 @@ namespace BossMod.Components
 
                 WDir dir = s.Kind switch
                 {
-                    Kind.AwayFromOrigin => from != s.Origin ? (from - s.Origin).Normalized() : new(),
-                    Kind.TowardsOrigin => -s.Direction.ToDirection(),
+                    Kind.AwayFromOrigin => from != s.Origin ? (from - s.Origin).Normalized() : default,
+                    Kind.TowardsOrigin => from != s.Origin ? (s.Origin - from).Normalized() : default,
                     Kind.DirForward => s.Direction.ToDirection(),
                     Kind.DirLeft => s.Direction.ToDirection().OrthoL(),
                     Kind.DirRight => s.Direction.ToDirection().OrthoR(),
-
                     _ => new()
                 };
                 if (dir == default)
                     continue; // couldn't determine direction for some reason
 
-                var to = from + s.Distance * dir;
+                var distance = s.Distance;
+                if (s.Kind is Kind.TowardsOrigin)
+                    distance = Math.Min(s.Distance, (s.Origin - from).Length() - s.MinDistance);
+                if (distance <= 0)
+                    continue; // this could happen if attract starts from < min distance
+
+                var to = from + distance * dir;
                 yield return (from, to);
                 from = to;
 
@@ -157,22 +170,26 @@ namespace BossMod.Components
         }
     }
 
-    // generic 'knockback away from cast target' component
+    // generic 'knockback from/attract to cast target' component
     // TODO: knockback is really applied when effectresult arrives rather than when actioneffect arrives, this is important for ai hints (they can reposition too early otherwise)
     public class KnockbackFromCastTarget : Knockback
     {
         public float Distance;
         public AOEShape? Shape;
         public Kind KnockbackKind;
+        public float MinDistance;
+        public bool MinDistanceBetweenHitboxes;
         private List<Actor> _casters = new();
         public IReadOnlyList<Actor> Casters => _casters;
 
-        public KnockbackFromCastTarget(ActionID aid, float distance, bool ignoreImmunes = false, int maxCasts = int.MaxValue, AOEShape? shape = null, Kind kind = Kind.AwayFromOrigin)
+        public KnockbackFromCastTarget(ActionID aid, float distance, bool ignoreImmunes = false, int maxCasts = int.MaxValue, AOEShape? shape = null, Kind kind = Kind.AwayFromOrigin, float minDistance = 0, bool minDistanceBetweenHitboxes = false)
             : base(aid, ignoreImmunes, maxCasts)
         {
             Distance = distance;
             Shape = shape;
             KnockbackKind = kind;
+            MinDistance = minDistance;
+            MinDistanceBetweenHitboxes = minDistanceBetweenHitboxes;
         }
 
         public override IEnumerable<Source> Sources(BossModule module, int slot, Actor actor)
@@ -180,14 +197,15 @@ namespace BossMod.Components
             foreach (var c in _casters)
             {
                 // note that majority of knockback casts are self-targeted
+                var minDist = MinDistance + (MinDistanceBetweenHitboxes ? actor.HitboxRadius + c.HitboxRadius : 0);
                 if (c.CastInfo!.TargetID == c.InstanceID)
                 {
-                    yield return new(c.Position, Distance, c.CastInfo.FinishAt, Shape, c.CastInfo.Rotation, KnockbackKind);
+                    yield return new(c.Position, Distance, c.CastInfo.FinishAt, Shape, c.CastInfo.Rotation, KnockbackKind, minDist);
                 }
                 else
                 {
                     var origin = module.WorldState.Actors.Find(c.CastInfo.TargetID)?.Position ?? c.CastInfo.LocXZ;
-                    yield return new(origin, Distance, c.CastInfo.FinishAt, Shape, Angle.FromDirection(origin - c.Position), KnockbackKind);
+                    yield return new(origin, Distance, c.CastInfo.FinishAt, Shape, Angle.FromDirection(origin - c.Position), KnockbackKind, minDist);
                 }
             }
         }
