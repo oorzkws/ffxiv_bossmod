@@ -8,6 +8,8 @@ namespace BossMod.NIN
 {
     public static class Rotation
     {
+        const float HUTON_REFRESH = 28.0f;
+
         public class State(float[] cooldowns) : CommonRotation.PlayerState(cooldowns)
         {
             public float KassatsuLeft;
@@ -112,6 +114,62 @@ namespace BossMod.NIN
 
         public class Strategy : CommonRotation.Strategy
         {
+            public enum TrueNorthUse : uint
+            {
+                Automatic = 0,
+
+                [PropertyDisplay("Delay", 0x800000ff)]
+                Delay = 1,
+
+                [PropertyDisplay("Force", 0x8000ff00)]
+                Force = 2,
+            }
+
+            public enum NinjutsuUse : uint
+            {
+                Automatic = 0, // use to prevent overcap, use all charges in trick window
+
+                [PropertyDisplay("Do not use", 0x800000ff)]
+                Delay = 1, // use none
+
+                [PropertyDisplay("Use all charges", 0x8000ff00)]
+                Force = 2, // use all
+
+                [PropertyDisplay("Place Doton if not already active, otherwise do not use")]
+                Doton = 3,
+            }
+
+            public enum TCJUse : uint
+            {
+                // use after trick unless we're level 70 or 71, then use before trick
+                Automatic = 0,
+
+                [PropertyDisplay("Do not automatically use")]
+                Delay = 1,
+
+                [PropertyDisplay("Use ASAP")]
+                Force = 2,
+            }
+
+            public enum PKUse : uint
+            {
+                Automatic = 0, // use unless it would overcap huton
+
+                [PropertyDisplay("Do not automatically use")]
+                Delay = 1,
+
+                [PropertyDisplay("Use ASAP")]
+                Force = 2,
+
+                [PropertyDisplay("Only use if outside melee range")]
+                UseOutsideMelee = 3
+            }
+
+            public TrueNorthUse TrueNorthStrategy;
+            public NinjutsuUse NinjutsuStrategy;
+            public TCJUse TCJStrategy;
+            public PKUse PKStrategy;
+
             public bool AutoHide;
             public bool AutoUnhide;
             public bool AllowDashRaiju;
@@ -145,7 +203,7 @@ namespace BossMod.NIN
                 if (
                     strategy.CombatTimer > -9.5
                     && strategy.CombatTimer < -6
-                    && state.HutonLeft < 30
+                    && state.HutonLeft < HUTON_REFRESH
                     && PerformNinjutsu(state, AID.Huton, out act)
                 )
                     return act;
@@ -188,7 +246,7 @@ namespace BossMod.NIN
 
             // emergency huton refresh
             // this block needs to be moved down because it tends to interrupt other things
-            if (state.HutonLeft == 0)
+            if (state.HutonLeft == 0 && state.Mudra.Left == 0 && state.TenChiJin.Left == 0)
                 if (state.Unlocked(AID.Huraijin))
                     return AID.Huraijin;
                 else if (state.KassatsuLeft == 0 && PerformNinjutsu(state, AID.Huton, out act))
@@ -206,9 +264,6 @@ namespace BossMod.NIN
             // spending charges on suiton + trick on dungeon packs is generally a potency loss
             if (ShouldUseSuiton(state, strategy) && PerformNinjutsu(state, AID.Suiton, out act))
                 return act;
-
-            if (state.KamaitachiLeft > state.GCD && state.HutonLeft < 50)
-                return AID.PhantomKamaitachi;
 
             if (ShouldUseDamageNinjutsu(state, strategy))
             {
@@ -250,6 +305,9 @@ namespace BossMod.NIN
                         return act;
                 }
             }
+
+            if (state.KamaitachiLeft > state.GCD && state.HutonLeft < 50)
+                return AID.PhantomKamaitachi;
 
             if (state.RaijuReady.Left > state.GCD)
             {
@@ -333,13 +391,7 @@ namespace BossMod.NIN
                 }
 
                 if (
-                    // TCJ can't be used during kassatsu
-                    state.KassatsuLeft == 0
-                    // do not use if ninjutsu charges would overcap during
-                    && state.CD(CDGroup.Ten) > state.GCD + 3
-                    && state.Unlocked(AID.TenChiJin)
-                    // is this that important...
-                    && (!strategy.UseAOERotation || strategy.NumKatonTargets >= 3)
+                    ShouldUseTCJ(state, strategy)
                     && strategy.ForceMovementIn > deadline + 3
                     && state.CanWeave(CDGroup.TenChiJin, 0.6f, deadline)
                 )
@@ -348,6 +400,7 @@ namespace BossMod.NIN
                 if (
                     state.SuitonLeft > state.GCD
                     && state.Unlocked(AID.Meisui)
+                    && state.Ninki <= 50
                     && state.CanWeave(CDGroup.Meisui, 0.6f, deadline)
                 )
                     return ActionID.MakeSpell(AID.Meisui);
@@ -367,7 +420,11 @@ namespace BossMod.NIN
             if (ShouldUseMug(state, strategy) && state.CanWeave(CDGroup.Mug, 0.6f, deadline))
                 return ActionID.MakeSpell(AID.Mug);
 
-            if (ShouldUseTrick(state, strategy) && state.CanWeave(CDGroup.TrickAttack, 0.6f, deadline))
+            if (
+                ShouldUseTrick(state, strategy)
+                && state.CanWeave(CDGroup.TrickAttack, 0.6f, deadline)
+                && state.GCD < 0.800
+            )
                 return ActionID.MakeSpell(AID.TrickAttack);
 
             return new();
@@ -446,11 +503,15 @@ namespace BossMod.NIN
             // this can happen if, for example:
             // * trick expires while casting raiton
             // * kassatsu expires during hyosho and it becomes hyoton, which we don't want to use
-            if (state.Mudra.Left > 0)
+            if (
+                state.Mudra.Left > 0
+                || strategy.NinjutsuStrategy == Strategy.NinjutsuUse.Force
+                || strategy.NinjutsuStrategy == Strategy.NinjutsuUse.Doton
+            )
                 return true;
 
             // target is out of range
-            if (state.RangeToTarget > 25)
+            if (state.RangeToTarget > 25 || strategy.NinjutsuStrategy == Strategy.NinjutsuUse.Delay)
                 return false;
 
             // when fighting packs in dungeons, or if we don't have access to suiton, use all mudra charges
@@ -469,9 +530,12 @@ namespace BossMod.NIN
             if (state.CD(CDGroup.Ten) < (state.InCombo ? 25 : 5))
                 return true;
 
-            // kassatsu'd early
-            if (state.KassatsuLeft > state.GCD && state.KassatsuLeft < state.GCD + state.AttackGCDTime)
-                return true;
+            if (state.KassatsuLeft > state.GCD)
+            {
+                // kassatsu is running out
+                if (state.KassatsuLeft < state.GCD + 3)
+                    return true;
+            }
 
             return false;
         }
@@ -495,9 +559,7 @@ namespace BossMod.NIN
                 return false;
 
             if (strategy.CombatTimer < 10)
-                return state.CD(CDGroup.Mug) > 0
-                    && (state.CD(CDGroup.Bunshin) > 0 || !state.Unlocked(AID.Bunshin))
-                    && state.GCD > 0.800;
+                return state.CD(CDGroup.Mug) > 0 && (state.CD(CDGroup.Bunshin) > 0 || !state.Unlocked(AID.Bunshin));
 
             return true;
         }
@@ -519,22 +581,58 @@ namespace BossMod.NIN
                 return false;
 
             if (state.IsTrickActive)
-                return state.CD(CDGroup.Meisui) > 0 || !state.Unlocked(TraitID.EnhancedMeisui);
+                return state.CD(CDGroup.Meisui) > 0 || !state.Unlocked(TraitID.EnhancedMeisui) || state.Ninki > 50;
 
             // TODO: don't use if bunshin is about to come off cooldown. idk how to do this in non st mode
             return state.Ninki >= (strategy.UseAOERotation ? 50 : 90);
         }
 
-        private static bool ShouldUseSuiton(State state, Strategy strategy) =>
-            !strategy.UseAOERotation
-            && state.Unlocked(AID.Suiton)
-            && state.SuitonLeft == 0
-            && state.KassatsuLeft == 0
-            // TODO is 20 too long? this gives us 3.5 seconds of trick being off cd
-            && state.CD(CDGroup.TrickAttack) < 20;
+        private static bool ShouldUseSuiton(State state, Strategy strategy)
+        {
+            if (
+                strategy.UseAOERotation
+                || !state.Unlocked(AID.Suiton)
+                || state.SuitonLeft > 0
+                || state.KassatsuLeft > 0
+            )
+                return false;
+
+            if (
+                state.Unlocked(AID.TenChiJin)
+                && !state.Unlocked(AID.Meisui)
+                // we will use tcj for trick instead of suiton
+                && state.CD(CDGroup.TenChiJin) <= state.CD(CDGroup.TrickAttack)
+            )
+                return false;
+
+            return state.CD(CDGroup.TrickAttack) < 20;
+        }
+
+        private static bool ShouldUseTCJ(State state, Strategy strategy)
+        {
+            if (
+                !state.Unlocked(AID.TenChiJin)
+                || state.KassatsuLeft > 0
+                || state.CD(CDGroup.Ten) <= state.GCD + 3
+                || strategy.TCJStrategy == Strategy.TCJUse.Delay
+            )
+                return false;
+
+            if (strategy.TCJStrategy == Strategy.TCJUse.Force)
+                return true;
+
+            // not sure how important this is. it's probably a loss to use single target TCJ on trash pulls right?
+            if (strategy.UseAOERotation && strategy.NumKatonTargets < 3)
+                return false;
+
+            if (!state.Unlocked(AID.Meisui))
+                return state.CD(CDGroup.TrickAttack) < 20;
+
+            return true;
+        }
 
         private static bool ShouldUseCrush(State state, Strategy strategy, float deadline) =>
-            state.Unlocked(AID.ArmorCrush) && state.HutonLeft - deadline < 30 && state.HutonLeft > deadline;
+            state.Unlocked(AID.ArmorCrush) && state.HutonLeft - deadline < HUTON_REFRESH && state.HutonLeft > deadline;
 
         private static bool HaveTarget(State state, Strategy strategy) =>
             state.TargetingEnemy || strategy.NumPointBlankAOETargets > 0;
