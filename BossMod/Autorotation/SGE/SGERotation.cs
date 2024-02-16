@@ -24,11 +24,22 @@ namespace BossMod.SGE
             public AID BestDyskrasia => FindUnlocked(AID.DyskrasiaII, AID.Dyskrasia);
             public AID BestToxikon => FindUnlocked(AID.ToxikonII, AID.Toxikon);
 
-            public SID ExpectedEudosis => Unlocked(AID.EukrasianDosisIII) ? SID.EukrasianDosisIII : Unlocked(AID.EukrasianDosisII) ? SID.EukrasianDosisII : SID.EukrasianDosis;
+            public SID ExpectedEudosis =>
+                Unlocked(AID.EukrasianDosisIII)
+                    ? SID.EukrasianDosisIII
+                    : Unlocked(AID.EukrasianDosisII)
+                        ? SID.EukrasianDosisII
+                        : SID.EukrasianDosis;
 
-            public CDGroup PhlegmaCD => Unlocked(AID.PhlegmaIII) ? CDGroup.PhlegmaIII : Unlocked(AID.PhlegmaII) ? CDGroup.PhlegmaII : CDGroup.Phlegma;
+            public CDGroup PhlegmaCD =>
+                Unlocked(AID.PhlegmaIII)
+                    ? CDGroup.PhlegmaIII
+                    : Unlocked(AID.PhlegmaII)
+                        ? CDGroup.PhlegmaII
+                        : CDGroup.Phlegma;
 
-            public State(float[] cooldowns) : base(cooldowns) { }
+            public State(float[] cooldowns)
+                : base(cooldowns) { }
 
             public bool Unlocked(AID aid) => Definitions.Unlocked(aid, Level, UnlockProgress);
 
@@ -72,18 +83,10 @@ namespace BossMod.SGE
             if (strategy.NumDyskrasiaTargets > 1 && state.Unlocked(state.BestDyskrasia))
                 return state.BestDyskrasia;
 
-            if (
-                !canCast
-                && state.Sting > 0
-                && strategy.NumToxikonTargets > 0
-            )
+            if (!canCast && state.Sting > 0 && strategy.NumToxikonTargets > 0)
                 return state.BestToxikon;
 
-            if (
-                strategy.NumPneumaTargets >= 3
-                && state.Unlocked(AID.Pneuma)
-                && state.CD(CDGroup.Pneuma) <= state.GCD
-            )
+            if (strategy.NumPneumaTargets >= 3 && state.Unlocked(AID.Pneuma) && state.CD(CDGroup.Pneuma) <= state.GCD)
                 return AID.Pneuma;
 
             if (!state.TargetingEnemy)
@@ -103,7 +106,13 @@ namespace BossMod.SGE
             )
                 return state.BestPhlegma;
 
-            return state.BestDosis;
+            if (canCast)
+                return state.BestDosis;
+
+            if (strategy.NumDyskrasiaTargets > 0 && state.Unlocked(state.BestDyskrasia))
+                return state.BestDyskrasia;
+
+            return AID.None;
         }
 
         private static bool ShouldUseBurst(State state, Strategy strategy)
