@@ -484,6 +484,7 @@ namespace BossMod.BLM
             )
                 return ActionID.MakeSpell(AID.Transpose);
 
+            // TODO this is wrong, we can only transpose if we CURRENTLY have 10k MP since it will switch off regen as soon as its used
             if (
                 state.FirestarterLeft > state.GCD
                 && state.ElementalLevel < 0
