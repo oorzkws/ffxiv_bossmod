@@ -52,12 +52,15 @@ namespace BossMod
         public static int SprintCDGroup = 55;
         public static int GCDGroup = 57;
         public static int PotionCDGroup = 58;
+        public static int DutyActionCDGroup = 80;
+        public static int DutyAction2CDGroup = 81;
 
         public static Dictionary<ActionID, ActionDefinition> CommonActionData(ActionID statPotion)
         {
             var res = new Dictionary<ActionID, ActionDefinition>();
             (res[IDSprint] = new(0, 0, SprintCDGroup, 60, 1, 0.6f)).EffectDuration = 10;
             (res[statPotion] = new(0, 0, PotionCDGroup, 270, 1, 1.1f)).EffectDuration = 30;
+            DutyActions.Register(ref res);
             return res;
         }
 
@@ -85,6 +88,14 @@ namespace BossMod
                 _ => 0u
             };
             return stanceSID != 0 && a.FindStatus(stanceSID) != null;
+        }
+
+        public static bool IsGCDLike(uint actionID)
+        {
+            // update when definitions are added:
+            // - SGE: Pneuma
+            // - BLU: like 20 spells (triple trident, rose of destruction, angel's whisper, ...)
+            return false;
         }
     }
 }
