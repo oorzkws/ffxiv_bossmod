@@ -31,13 +31,11 @@ namespace BossMod.Shadowbringers.HuntA.Maliktender
         public TwentyKNeedles() : base(ActionID.MakeSpell(AID.TwentyKNeedles), new AOEShapeRect(20,4)) { }
     }
 
-    class Haste : Components.CastHint
+    class Haste : BossComponent
     {
-        public Haste() : base(ActionID.MakeSpell(AID.Haste), "") { }
         private bool HasteB;
         public override void OnCastStarted(BossModule module, Actor caster, ActorCastInfo spell)
         {
-            base.OnCastStarted(module, caster, spell);
             if ((AID)spell.Action.ID == AID.Haste)
                 HasteB = true;
         }
@@ -65,5 +63,6 @@ namespace BossMod.Shadowbringers.HuntA.Maliktender
         }
     }
 
+    [ModuleInfo(NotoriousMonsterID = 124)]
     public class Maliktender(WorldState ws, Actor primary) : SimpleBossModule(ws, primary) {}
 }

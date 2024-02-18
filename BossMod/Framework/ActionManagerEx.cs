@@ -222,13 +222,6 @@ namespace BossMod
             return gcd->Total - gcd->Elapsed;
         }
 
-        // TODO: calculate gcd duration properly, current implementation would return 0 during downtime
-        public float GCDTime()
-        {
-            var gcd = _inst->GetRecastGroupDetail(CommonDefinitions.GCDGroup);
-            return gcd->Total;
-        }
-
         public uint GetAdjustedActionID(uint actionID) => _inst->GetAdjustedActionId(actionID);
 
         public uint GetActionStatus(ActionID action, ulong target, bool checkRecastActive = true, bool checkCastingActive = true, uint* outOptExtraInfo = null)
@@ -378,6 +371,7 @@ namespace BossMod
 
         private void ProcessPacketActionEffectDetour(uint casterID, FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara* casterObj, Vector3* targetPos, Network.ServerIPC.ActionEffectHeader* header, ulong* effects, ulong* targets)
         {
+            var packetAnimLock = header->animationLockTime;
             if (ActionEffectReceived != null)
             {
                 // note: there's a slight difference with dispatching event from here rather than from packet processing (ActionEffectN) functions
@@ -431,9 +425,18 @@ namespace BossMod
                     float adjDelay = animLockDelay;
                     if (adjDelay > AnimationLockDelayMax)
                     {
-                        animLockReduction = Math.Min(adjDelay - AnimationLockDelayMax, currAnimLock);
-                        adjDelay -= animLockReduction;
-                        Utils.WriteField(_inst, 8, currAnimLock - animLockReduction);
+                        // sanity check for plugin conflicts
+                        if (header->animationLockTime != packetAnimLock || packetAnimLock % 0.01 is >= 0.0005f and <= 0.0095f)
+                        {
+                            Service.Log($"[AMEx] Unexpected animation lock {packetAnimLock:f} -> {header->animationLockTime:f}, disabling anim lock tweak feature");
+                            Config.RemoveAnimationLockDelay = false;
+                        }
+                        else
+                        {
+                            animLockReduction = Math.Min(adjDelay - AnimationLockDelayMax, currAnimLock);
+                            adjDelay -= animLockReduction;
+                            Utils.WriteField(_inst, 8, currAnimLock - animLockReduction);
+                        }
                     }
                     AnimationLockDelayAverage = adjDelay * (1 - AnimationLockDelaySmoothing) + AnimationLockDelayAverage * AnimationLockDelaySmoothing;
                 }

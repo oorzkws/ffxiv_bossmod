@@ -19,13 +19,15 @@ namespace BossMod.Endwalker.HuntS.Ker
         RightInterment = 27643, // Boss->self, 6.0s cast, range 40 180-degree cone
         LeftInterment = 27644, // Boss->self, 6.0s cast, range 40 180-degree cone
         WhisperedIncantation = 27645, // Boss->self, 5.0s cast, single-target, applies status to boss, remembers next skill
-        EternalDamnation = 27647, // Boss->self, 6.0s cast, range 40 circle gaze
+        EternalDamnation = 27647, // Boss->self, 6.0s cast, range 40 circle gaze, applies doom
         EternalDamnation2 = 27640, // Boss->self, 6,0s cast, range 40 circle gaze, applies doom
+        WhispersManifest4 = 27654, // Boss->self, 6,0s cast, range 40 circle gaze, applies doom
         AncientFlare = 27704, // Boss->self, 6.0s cast, range 40 circle, applies pyretic
+        AncientFlare2 = 27638, // Boss->self, 6.0s cast, range 40 circle, applies pyretic
         WhispersManifest = 27706, // Boss->self, 6,0s cast, range 40 circle, applies pyretc (remembered skill from Whispered Incantation)
-        AncientHoly = 27646, // Boss->self, 6,0s cast, range 40 circle, circle with dmg fall off, harmless after roundabout range 20
-        AncientHoly2 = 27639, // Boss->self, 6,0s cast, range 40 circle, circle with dmg fall off, harmless after roundabout range 20
-        WhispersManifest2 = 27653, // Boss->self, 6,0s cast, range 40 circle (Ancient Holy? to be verified)
+        AncientHoly = 27646, // Boss->self, 6,0s cast, range 40 circle, circle with dmg fall off, harmless after ca. range 20 (it is hard to say because people accumulate vuln stacks which skews the damage fall off with distance from source)
+        AncientHoly2 = 27639, // Boss->self, 6,0s cast, range 40 circle, circle with dmg fall off, harmless after around range 20
+        WhispersManifest2 = 27653, // Boss->self, 6,0s cast, range 40 circle, circle with dmg fall off, harmless after around range 20
         MirroredIncantation = 27927, // Boss->self, 3,0s cast, single-target, mirrors the next 3 interments
         MirroredIncantation2 = 27928, // Boss->self, 3,0s cast, single-target, mirrors the next 4 interments
         Mirrored_RightInterment = 27663, // Boss->self, 6,0s cast, range 40 180-degree cone
@@ -33,6 +35,7 @@ namespace BossMod.Endwalker.HuntS.Ker
         Mirrored_ForeInterment = 27661, // Boss->self, 6,0s cast, range 40 180-degree cone
         Mirrored_RearInterment = 27662, // Boss->self, 6,0s cast, range 40 180-degree cone
         unknown = 25698, // Boss->player, no cast, single-target, no idea what this is for, gets very rarely used, my 6min replay from pull to death doesn't have it for instance
+
     };
     public enum SID : uint
     {
@@ -62,9 +65,9 @@ namespace BossMod.Endwalker.HuntS.Ker
     {
         public AncientBlizzard2() : base(ActionID.MakeSpell(AID.AncientBlizzard2), new AOEShapeDonut(8, 40)) { }
     }
-    class WhispersManifest3 : Components.SelfTargetedAOEs
+    class AncientBlizzardWhispersManifest : Components.SelfTargetedAOEs
     {
-        public WhispersManifest3() : base(ActionID.MakeSpell(AID.WhispersManifest3), new AOEShapeDonut(8, 40)) { }
+        public AncientBlizzardWhispersManifest() : base(ActionID.MakeSpell(AID.WhispersManifest3), new AOEShapeDonut(8, 40)) { }
     }
 
     class ForeInterment : Components.SelfTargetedAOEs
@@ -108,6 +111,10 @@ namespace BossMod.Endwalker.HuntS.Ker
     {
         public EternalDamnation() : base(ActionID.MakeSpell(AID.EternalDamnation)) { }
     }
+    class EternalDamnationWhispersManifest : Components.CastGaze
+    {
+        public EternalDamnationWhispersManifest() : base(ActionID.MakeSpell(AID.WhispersManifest4)) { }
+    }
     class EternalDamnation2 : Components.CastGaze
     {
         public EternalDamnation2() : base(ActionID.MakeSpell(AID.EternalDamnation2)) { }
@@ -116,20 +123,24 @@ namespace BossMod.Endwalker.HuntS.Ker
     {
         public WhisperedIncantation() : base(ActionID.MakeSpell(AID.WhisperedIncantation), "Remembers the next skill and uses it again when casting Whispers Manifest") { }
     }
-    class MirroredIncantation : Components.CastHint
+    class MirroredIncantation : BossComponent
     {
         private int Mirrorstacks;
         private bool casting;
-        public MirroredIncantation() : base(ActionID.MakeSpell(AID.MirroredIncantation), "") { }
+        private bool casting2;
         public override void OnCastStarted(BossModule module, Actor caster, ActorCastInfo spell)
         {
             if ((AID)spell.Action.ID == AID.MirroredIncantation)
                 casting = true;
+            if ((AID)spell.Action.ID == AID.MirroredIncantation2)
+                casting2 = true;
         }
         public override void OnCastFinished(BossModule module, Actor caster, ActorCastInfo spell)
         {
-            if ((AID)spell.Action.ID == AID.MirroredIncantation)
+            if ((AID)spell.Action.ID == AID.MirroredIncantation || (AID)spell.Action.ID == AID.MirroredIncantation2)
                 casting = false;
+                casting2 = false;
+
         }
        public override void OnStatusGain(BossModule module, Actor actor, ActorStatus status)
         {
@@ -163,27 +174,24 @@ namespace BossMod.Endwalker.HuntS.Ker
             if (Mirrorstacks > 0)
                   hints.Add($"Mirrored interments left: {Mirrorstacks}!");
             if (casting)
-                  hints.Add("The next three interments will be mirrored!");           
+                  hints.Add("The next three interments will be mirrored!");
+            if (casting2)
+                  hints.Add("The next four interments will be mirrored!");                 
         }
     }
-      class MirroredIncantation2 : Components.CastHint
-    {
-        public MirroredIncantation2() : base(ActionID.MakeSpell(AID.MirroredIncantation2), "The next four interments will be mirrored!") { }
-    }
-    class AncientFlare : Components.CastHint
+    class AncientFlare : BossComponent
     {
         private BitMask _pyretic;
         public bool Pyretic { get; private set; }
         private bool casting;
-        public AncientFlare() : base(ActionID.MakeSpell(AID.AncientFlare), "") { }
         public override void OnCastStarted(BossModule module, Actor caster, ActorCastInfo spell)
         {
-            if ((AID)spell.Action.ID == AID.AncientFlare)
+            if ((AID)spell.Action.ID == AID.AncientFlare || (AID)spell.Action.ID == AID.AncientFlare2 || (AID)spell.Action.ID == AID.WhispersManifest)
                 casting = true;
         }
         public override void OnCastFinished(BossModule module, Actor caster, ActorCastInfo spell)
         {
-            if ((AID)spell.Action.ID == AID.AncientFlare)
+            if ((AID)spell.Action.ID == AID.AncientFlare || (AID)spell.Action.ID == AID.AncientFlare2 || (AID)spell.Action.ID == AID.WhispersManifest)
                 casting = false;
         }
         public override void OnStatusGain(BossModule module, Actor actor, ActorStatus status)
@@ -207,21 +215,17 @@ namespace BossMod.Endwalker.HuntS.Ker
             hints.Add("Applies Pyretic - STOP everything until it runs out!");  
         }
     }
-     class AncientFlareWhispersManifest : Components.CastHint
-    {
-        public AncientFlareWhispersManifest() : base(ActionID.MakeSpell(AID.WhispersManifest), "Applies Pyretic - STOP everything until it runs out!") { }
-    }
     class AncientHoly : Components.SelfTargetedAOEs
     {
         public AncientHoly() : base(ActionID.MakeSpell(AID.AncientHoly), new AOEShapeCircle(20)) { }
     }
-        class AncientHoly2 : Components.SelfTargetedAOEs
+    class AncientHoly2 : Components.SelfTargetedAOEs
     {
         public AncientHoly2() : base(ActionID.MakeSpell(AID.AncientHoly2), new AOEShapeCircle(20)) { }
     }
     class AncientHolyWhispersManifest : Components.SelfTargetedAOEs
     {
-        public AncientHolyWhispersManifest() : base(ActionID.MakeSpell(AID.WhispersManifest2), new AOEShapeCircle(40)) { } //this can hit for over 100k, I will make it the maximum range until I know what exactly it is based on
+        public AncientHolyWhispersManifest() : base(ActionID.MakeSpell(AID.WhispersManifest2), new AOEShapeCircle(20)) { }
     }
     // TODO: wicked swipe, check if there are even more skills missing
     class KerStates : StateMachineBuilder
@@ -233,7 +237,7 @@ namespace BossMod.Endwalker.HuntS.Ker
                 .ActivateOnEnter<Heliovoid>()
                 .ActivateOnEnter<AncientBlizzard>()
                 .ActivateOnEnter<AncientBlizzard2>()
-                .ActivateOnEnter<WhispersManifest3>()
+                .ActivateOnEnter<AncientBlizzardWhispersManifest>()
                 .ActivateOnEnter<ForeInterment>()
                 .ActivateOnEnter<RearInterment>()
                 .ActivateOnEnter<RightInterment>()
@@ -243,17 +247,17 @@ namespace BossMod.Endwalker.HuntS.Ker
                 .ActivateOnEnter<Mirrored_RightInterment>()
                 .ActivateOnEnter<Mirrored_LeftInterment>()
                 .ActivateOnEnter<MirroredIncantation>()
-                .ActivateOnEnter<MirroredIncantation2>()
                 .ActivateOnEnter<EternalDamnation>()
                 .ActivateOnEnter<EternalDamnation2>()
+                .ActivateOnEnter<EternalDamnationWhispersManifest>()
                 .ActivateOnEnter<AncientFlare>()
                 .ActivateOnEnter<AncientHoly>()
                 .ActivateOnEnter<AncientHoly2>()
-                .ActivateOnEnter<AncientHolyWhispersManifest>()
-                .ActivateOnEnter<AncientFlareWhispersManifest>();
+                .ActivateOnEnter<AncientHolyWhispersManifest>();
         }
     }
 
+    [ModuleInfo(NotoriousMonsterID = 181)]
     public class Ker : SimpleBossModule
     {
         public Ker(WorldState ws, Actor primary) : base(ws, primary) { }
