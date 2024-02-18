@@ -431,6 +431,9 @@ namespace BossMod
             return null;
         }
 
+        protected Actor SmartTargetFriendlyOrSelf(Actor? primaryTarget)
+            => SmartTargetFriendly(primaryTarget) ?? Player;
+
         // smart targeting utility: return mouseover (if hostile and allowed) or target (otherwise)
         protected Actor? SmartTargetHostile(Actor? primaryTarget)
         {
