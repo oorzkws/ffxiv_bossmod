@@ -46,11 +46,6 @@ namespace BossMod.DRK
             public int NumSaltTargets;
             public int NumDrainTargets;
 
-            public override string ToString()
-            {
-                return $"AOE={NumAOETargets}/SE {NumSaltTargets}/SH {NumSHBTargets}/FL {NumFloodTargets}/DR {NumDrainTargets}";
-            }
-
             public enum MPUse : uint
             {
                 // use Edge or Flood of Darkness/Shadow if
@@ -59,13 +54,13 @@ namespace BossMod.DRK
                 // 3. over ~9000 MP (prevent overcap)
                 Automatic = 0,
 
-                // same as above, but save 3000 MP for TBN in all cases
+                // same as above, save MP for TBN
                 AutomaticTBN = 1,
 
                 // spend MP as soon as possible
                 Force = 2,
 
-                // same as above, but reserve 3000 MP for TBN
+                // same as above, save MP for TBN
                 ForceTBN = 3,
 
                 // only spend to prevent overcap
@@ -83,9 +78,29 @@ namespace BossMod.DRK
             public OffensiveAbilityUse CarveUse;
             public OffensiveAbilityUse ShadowUse;
 
-            public void ApplyStrategyOverrides(uint[] overrides)
+            public enum PlungeUse : uint
             {
-                if (overrides.Length >= 7)
+                // use during 2min burst if in melee range
+                Automatic = 0,
+
+                // don't use
+                Delay = 1,
+
+                // use on cooldown
+                Force = 2,
+
+                // use on cooldown, save one charge
+                ForceReserve = 3,
+
+                // use if not in melee range
+                GapCloser = 4,
+            }
+
+            public PlungeUse PlungeStrategy;
+
+            public void ApplyStrategyOverrides(uint[] overrides, bool defaultToAutoTBN)
+            {
+                if (overrides.Length >= 8)
                 {
                     MPStrategy = (MPUse)overrides[0];
                     BloodUse = (OffensiveAbilityUse)overrides[1];
@@ -94,17 +109,25 @@ namespace BossMod.DRK
                     SaltedEarthUse = (OffensiveAbilityUse)overrides[4];
                     CarveUse = (OffensiveAbilityUse)overrides[5];
                     ShadowUse = (OffensiveAbilityUse)overrides[6];
+                    PlungeStrategy = (PlungeUse)overrides[7];
                 }
                 else
                 {
-                    MPStrategy = MPUse.Automatic;
+                    MPStrategy = defaultToAutoTBN ? MPUse.AutomaticTBN : MPUse.Automatic;
                     BloodUse = OffensiveAbilityUse.Automatic;
                     BloodWeaponUse = OffensiveAbilityUse.Automatic;
                     DeliriumUse = OffensiveAbilityUse.Automatic;
                     SaltedEarthUse = OffensiveAbilityUse.Automatic;
                     CarveUse = OffensiveAbilityUse.Automatic;
                     ShadowUse = OffensiveAbilityUse.Automatic;
+                    PlungeStrategy = PlungeUse.Automatic;
                 }
+            }
+
+            public override string ToString()
+            {
+                var savetbn = (MPStrategy is MPUse.AutomaticTBN or MPUse.ForceTBN) ? "Reserve" : "None";
+                return $"AOE={NumAOETargets}/SE {NumSaltTargets}/SH {NumSHBTargets}/FL {NumFloodTargets}/DR {NumDrainTargets}, TBN={savetbn}";
             }
         }
 
@@ -113,7 +136,7 @@ namespace BossMod.DRK
             if (strategy.CombatTimer > -100 && strategy.CombatTimer < -0.7f)
                 return AID.None;
 
-            if (CanBlood(state, strategy) && state.BloodWeapon.Stacks < 2)
+            if (CanBlood(state, strategy))
             {
                 if (strategy.NumAOETargets >= 3 && state.Unlocked(AID.Quietus))
                     return AID.Quietus;
@@ -145,6 +168,14 @@ namespace BossMod.DRK
 
         public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline, bool lastSlot)
         {
+            if (strategy.CombatTimer > -100 && strategy.CombatTimer < 0)
+            {
+                if (strategy.CombatTimer > -4 && state.BloodWeapon.Left == 0 && state.Unlocked(AID.BloodWeapon))
+                    return ActionID.MakeSpell(AID.BloodWeapon);
+
+                return new();
+            }
+
             var bestEdge = AID.None;
             if (state.Unlocked(AID.EdgeOfDarkness))
                 bestEdge = strategy.NumFloodTargets >= 3 ? state.BestFlood : state.BestEdge;
@@ -235,6 +266,7 @@ namespace BossMod.DRK
 
             if (
                 state.SaltedEarthLeft > state.AnimationLock
+                && state.Unlocked(AID.SaltAndDarkness)
                 && state.CanWeave(CDGroup.SaltAndDarkness, 0.6f, deadline)
                 && strategy.NumSaltTargets > 0
             )
@@ -258,13 +290,12 @@ namespace BossMod.DRK
             if (state.HaveDarkArts)
                 return true;
 
-            var minimumMP = strategy.MPStrategy switch
-            {
-                Strategy.MPUse.AutomaticTBN
-                or Strategy.MPUse.ForceTBN
-                    => state.Unlocked(AID.TheBlackestNight) ? 6000 : 3000,
-                _ => 3000
-            };
+            var minimumMP = 3000;
+            if (
+                state.Unlocked(AID.TheBlackestNight)
+                && strategy.MPStrategy is Strategy.MPUse.AutomaticTBN or Strategy.MPUse.ForceTBN
+            )
+                minimumMP = 6000;
 
             switch (strategy.MPStrategy)
             {
@@ -301,7 +332,12 @@ namespace BossMod.DRK
                         return true;
                     if (
                         MathF.Min(state.CD(CDGroup.BloodWeapon), state.CD(CDGroup.Delirium))
-                        < state.GCD + state.AttackGCDTime
+                            < state.GCD + state.AttackGCDTime
+                        && (
+                            // save blood for living shadow since delirium doesn't make it free
+                            !state.Unlocked(AID.LivingShadow)
+                            || state.CD(CDGroup.LivingShadow) > state.AttackGCDTime * 3
+                        )
                     )
                         return true;
                     return state.Blood + state.ImminentBloodGain > 100;
@@ -329,6 +365,19 @@ namespace BossMod.DRK
                 _ => false,
             };
 
-        private static bool ShouldUsePlunge(State state, Strategy strategy) => ShouldUseBurst(state, strategy);
+        private static bool ShouldUsePlunge(State state, Strategy strategy)
+        {
+            var inMelee = state.RangeToTarget <= 3;
+
+            return strategy.PlungeStrategy switch
+            {
+                Strategy.PlungeUse.Automatic => inMelee && ShouldUseBurst(state, strategy),
+                Strategy.PlungeUse.Delay => false,
+                Strategy.PlungeUse.Force => inMelee,
+                Strategy.PlungeUse.ForceReserve => inMelee && state.CD(CDGroup.Plunge) == 0, // plunge only has 2 charges
+                Strategy.PlungeUse.GapCloser => !inMelee,
+                _ => false,
+            };
+        }
     }
 }

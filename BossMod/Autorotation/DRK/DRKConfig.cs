@@ -11,5 +11,11 @@ namespace BossMod
 
         [PropertyDisplay("Auto target for Shirk")]
         public bool SmartTargetShirk = true;
+
+        [PropertyDisplay("Reserve MP for The Blackest Night during general (non-planned) combat")]
+        public bool AutomaticTBNFallback = true;
+
+        [PropertyDisplay("Use Plunge as a damage ability")]
+        public bool AutoPlunge = true;
     }
 }
