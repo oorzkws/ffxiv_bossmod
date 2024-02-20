@@ -135,5 +135,11 @@ namespace BossMod
                 );
             }
         }
+
+        public static uint GetRealIdFromBozjaId(uint id) {
+            if (id < 1 || id > 99)
+                return 0;
+            return ALL[id - 1];
+        }
     }
 }
