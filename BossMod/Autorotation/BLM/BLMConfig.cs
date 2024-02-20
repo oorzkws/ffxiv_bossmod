@@ -11,5 +11,17 @@
 
         [PropertyDisplay("Use Umbral Soul to extend Enochian time when no enemy is targeted")]
         public bool AutoIceRefresh = true;
+
+        public enum AutoLL {
+            [PropertyDisplay("In opener only")]
+            Once = 0,
+            [PropertyDisplay("Never")]
+            None = 1,
+            [PropertyDisplay("On cooldown")]
+            Always = 2
+        }
+
+        [PropertyDisplay("Ley Lines usage")]
+        public AutoLL AutoLeylines = AutoLL.Once;
     }
 }
