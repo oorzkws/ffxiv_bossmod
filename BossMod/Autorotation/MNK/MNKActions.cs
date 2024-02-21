@@ -1,5 +1,5 @@
-﻿using Dalamud.Game.ClientState.JobGauge.Types;
-using System;
+﻿using System;
+using Dalamud.Game.ClientState.JobGauge.Types;
 
 namespace BossMod.MNK
 {
@@ -8,6 +8,7 @@ namespace BossMod.MNK
         public const int AutoActionST = AutoActionFirstCustom + 0;
         public const int AutoActionAOE = AutoActionFirstCustom + 1;
         public const int AutoActionFiller = AutoActionFirstCustom + 2;
+        public const int AutoActionSTQOpener = AutoActionFirstCustom + 3;
 
         private MNKConfig _config;
         private Rotation.State _state;
@@ -60,6 +61,7 @@ namespace BossMod.MNK
             _strategy.NumPointBlankAOETargets = autoAction == AutoActionST ? 0 : NumTargetsHitByPBAOE();
             _strategy.NumEnlightenmentTargets = Autorot.PrimaryTarget != null && autoAction != AutoActionST && _state.Unlocked(AID.HowlingFist) ? NumTargetsHitByEnlightenment(Autorot.PrimaryTarget) : 0;
             _strategy.UseAOE = _strategy.NumPointBlankAOETargets >= 3;
+            _strategy.UseSTQOpener = autoAction == AutoActionSTQOpener;
             if (autoAction == AutoActionFiller)
             {
                 _strategy.FireUse = Rotation.Strategy.FireStrategy.Delay;
@@ -93,6 +95,15 @@ namespace BossMod.MNK
             if (!Rotation.HaveTarget(_state, _strategy) || AutoAction < AutoActionAIFight)
                 return new();
 
+            if (
+                _strategy.UseSTQOpener
+                && _state.LostExcellenceLeft > 0
+                && _state.FoPLeft == 0
+                && _state.ExcOverslot >= 0
+                && _state.CanWeave(0f, 2.1f, deadline)
+            )
+                return LostActionSwap(LostActionID.BannerHonoredSacrifice, (uint)_state.ExcOverslot);
+
             ActionID res = new();
             if (_state.CanWeave(deadline - _state.OGCDSlotLength)) // first ogcd slot
                 res = Rotation.GetNextBestOGCD(_state, _strategy, deadline - _state.OGCDSlotLength);
@@ -118,6 +129,14 @@ namespace BossMod.MNK
             _state.FireLeft = StatusDetails(Player, SID.RiddleOfFire, Player.InstanceID).Left;
             _state.TrueNorthLeft = StatusDetails(Player, SID.TrueNorth, Player.InstanceID).Left;
 
+            // these are functionally the same as far as the rotation is concerned
+            _state.LostExcellenceLeft = MathF.Max(
+                StatusDetails(Player, SID.LostExcellence, Player.InstanceID).Left,
+                StatusDetails(Player, SID.Memorable, Player.InstanceID).Left
+            );
+            _state.FoPLeft = StatusDetails(Player, SID.LostFontofPower, Player.InstanceID).Left;
+            _state.HsacLeft = StatusDetails(Player, SID.BannerHonoredSacrifice, Player.InstanceID).Left;
+
             _state.TargetDemolishLeft = StatusDetails(Autorot.PrimaryTarget, SID.Demolish, Player.InstanceID).Left;
         }
 
@@ -141,6 +160,7 @@ namespace BossMod.MNK
             SupportedSpell(AID.Bootshine).PlaceholderForAuto = _config.FullRotation ? AutoActionST : AutoActionNone;
             SupportedSpell(AID.ArmOfTheDestroyer).PlaceholderForAuto = SupportedSpell(AID.ShadowOfTheDestroyer).PlaceholderForAuto = _config.FullRotation ? AutoActionAOE : AutoActionNone;
             SupportedSpell(AID.TrueStrike).PlaceholderForAuto = _config.FillerRotation ? AutoActionFiller : AutoActionNone;
+            SupportedSpell(AID.SnapPunch).PlaceholderForAuto = _config.FullRotation ? AutoActionSTQOpener : AutoActionNone;
 
             // combo replacement
             SupportedSpell(AID.FourPointFury).TransformAction = _config.AOECombos ? () => ActionID.MakeSpell(Rotation.GetNextComboAction(_state, _strategy)) : null;

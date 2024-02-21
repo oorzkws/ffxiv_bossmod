@@ -23,6 +23,9 @@ namespace BossMod.MNK
             public float FormShiftLeft; // 30 max
             public float FireLeft; // 20 max
             public float TrueNorthLeft; // 10 max
+            public float LostExcellenceLeft; // 60(?) max
+            public float FoPLeft; // 30 max
+            public float HsacLeft; // 15 max
 
             public bool HaveLunar => Nadi.HasFlag(Nadi.LUNAR);
             public bool HaveSolar => Nadi.HasFlag(Nadi.SOLAR);
@@ -58,6 +61,7 @@ namespace BossMod.MNK
                     return AID.CelestialRevolution;
                 }
             }
+            public int ExcOverslot => DutyAction1 == (uint)LostActionID.LostExcellence ? 0 : DutyAction2 == (uint)LostActionID.LostExcellence ? 1 : -1;
 
             public State(float[] cooldowns) : base(cooldowns) { }
 
@@ -79,6 +83,8 @@ namespace BossMod.MNK
             public bool UseAOE;
 
             public bool PreCombatFormShift;
+
+            public bool UseSTQOpener;
 
             public enum DashStrategy : uint
             {
@@ -256,6 +262,9 @@ namespace BossMod.MNK
             if (state.Unlocked(AID.SixSidedStar) && strategy.SSSUse == Strategy.OffensiveAbilityUse.Force)
                 return AID.SixSidedStar;
 
+            if (strategy.UseSTQOpener && state.LostExcellenceLeft > 0 && state.FoPLeft == 0)
+                return AID.SixSidedStar;
+
             if (state.BestBlitz != AID.MasterfulBlitz)
                 return state.BestBlitz;
 
@@ -315,6 +324,19 @@ namespace BossMod.MNK
                     return ActionID.MakeSpell(AID.Thunderclap);
 
                 return new();
+            }
+
+            // action swapping is handled in MNKActions since it returns NextAction and this function can only return ActionID and refactoring it will be annoying
+            if (strategy.UseSTQOpener)
+            {
+                if (state.Form == Form.Raptor && state.CanWeave(state.DutyActionCD(LostActionID.LostExcellence), 0.6f, deadline))
+                    return ActionID.MakeSpell(LostActionID.LostExcellence);
+
+                if (state.LostExcellenceLeft > 0 && state.FoPLeft == 0 && state.CanWeave(state.DutyActionCD(LostActionID.LostFontofPower), 0.6f, deadline))
+                    return ActionID.MakeSpell(LostActionID.LostFontofPower);
+
+                if (state.LostExcellenceLeft > 0 && state.HsacLeft == 0 && state.CanWeave(state.DutyActionCD(LostActionID.BannerHonoredSacrifice), 0.6f, deadline))
+                    return ActionID.MakeSpell(LostActionID.BannerHonoredSacrifice);
             }
 
             if (state.GCD <= 0.800f && ShouldUseRoF(state, strategy, deadline))
