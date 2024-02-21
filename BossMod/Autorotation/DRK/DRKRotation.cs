@@ -321,6 +321,9 @@ namespace BossMod.DRK
             if (state.Blood < 50 && state.Delirium.Left == 0)
                 return false;
 
+            var waitForShadow =
+                state.Unlocked(AID.LivingShadow) && state.CD(CDGroup.LivingShadow) <= state.AttackGCDTime * 4;
+
             switch (strategy.BloodUse)
             {
                 case CommonRotation.Strategy.OffensiveAbilityUse.Force:
@@ -328,16 +331,12 @@ namespace BossMod.DRK
                 case CommonRotation.Strategy.OffensiveAbilityUse.Delay:
                     return false;
                 case CommonRotation.Strategy.OffensiveAbilityUse.Automatic:
-                    if (ShouldUseBurst(state, strategy))
+                    if (ShouldUseBurst(state, strategy) && !waitForShadow)
                         return true;
                     if (
                         MathF.Min(state.CD(CDGroup.BloodWeapon), state.CD(CDGroup.Delirium))
                             < state.GCD + state.AttackGCDTime
-                        && (
-                            // save blood for living shadow since delirium doesn't make it free
-                            !state.Unlocked(AID.LivingShadow)
-                            || state.CD(CDGroup.LivingShadow) > state.AttackGCDTime * 3
-                        )
+                        && !waitForShadow
                     )
                         return true;
                     return state.Blood + state.ImminentBloodGain > 100;

@@ -1,5 +1,7 @@
 using System;
+using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.JobGauge.Types;
+using ImGuiNET;
 
 namespace BossMod.DRK
 {
@@ -23,7 +25,8 @@ namespace BossMod.DRK
 
             SupportedSpell(AID.SaltedEarth).TransformAction = () => ActionID.MakeSpell(_state.BestSalt);
             SupportedSpell(AID.Oblation).Condition = (tar) => tar?.FindStatus((uint)SID.Oblation) == null;
-            SupportedSpell(AID.Grit).TransformAction = SupportedSpell(AID.ReleaseGrit).TransformAction = () => ActionID.MakeSpell(_state.HaveTankStance ? AID.ReleaseGrit : AID.Grit);
+            SupportedSpell(AID.Grit).TransformAction = SupportedSpell(AID.ReleaseGrit).TransformAction = () =>
+                ActionID.MakeSpell(_state.HaveTankStance ? AID.ReleaseGrit : AID.Grit);
 
             _config.Modified += OnConfigModified;
             OnConfigModified(null, EventArgs.Empty);
@@ -74,19 +77,6 @@ namespace BossMod.DRK
                 autoAction == AutoActionST || Autorot.PrimaryTarget == null
                     ? 0
                     : Autorot.Hints.NumPriorityTargetsInAOECircle(Autorot.PrimaryTarget.Position, 5);
-
-            /*
-                        var timeSlice = _strategy.CombatTimer % 120f;
-                        _state.RaidBuffsLeft = 0;
-                        _strategy.RaidBuffsIn = 10000;
-                        if (timeSlice >= 27.8f) {
-                            _strategy.RaidBuffsIn = 127.8f - timeSlice;
-                        } else if (timeSlice >= 7.8f) {
-                            _state.RaidBuffsLeft = 27.8f - timeSlice;
-                        } else {
-                            _strategy.RaidBuffsIn = 7.8f - timeSlice;
-                        }
-                        */
         }
 
         private void UpdatePlayerState()
