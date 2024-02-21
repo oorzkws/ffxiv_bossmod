@@ -9,11 +9,10 @@ namespace BossMod
         const int HOLSTER_SIZE = 93;
 
         private readonly byte* _hol = null;
-        private readonly UISimpleWindow? _debugWindow;
+        private UISimpleWindow? _debugWindow;
 
         public LostActionsHolster()
         {
-            // _debugWindow = new("Lost Actions holster", DrawHolster, false, new(200, 200));
             var dir = FFXIVClientStructs.FFXIV.Client.Game.Event.EventFramework.Instance()->GetPublicContentDirector();
             if (dir != null && dir->Type is PublicContentDirectorType.Bozja)
             {
@@ -21,11 +20,14 @@ namespace BossMod
             }
         }
 
-        public void ToggleDebugWindow() {
-            // _debugWindow.IsOpen = !_debugWindow.IsOpen;
+        public void ToggleDebugWindow()
+        {
+            _debugWindow ??= new("Lost Actions holster", DrawHolster, false, new(200, 200));
+            _debugWindow.IsOpen = !_debugWindow.IsOpen;
         }
 
-        public void Dispose() {
+        public void Dispose()
+        {
             _debugWindow?.Dispose();
         }
 
@@ -62,7 +64,8 @@ namespace BossMod
             for (var i = 0u; i < 93; i++)
             {
                 var act = GetSlot(i);
-                if (act > 0) {
+                if (act > 0)
+                {
                     ImGui.TextUnformatted($"{i}: {act}");
                     ImGui.SameLine();
                     if (ImGui.Button($"put in slot 1##{i}"))
