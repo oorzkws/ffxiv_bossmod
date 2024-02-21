@@ -193,6 +193,8 @@ namespace BossMod
         private void OnConditionChanged(ConditionFlag flag, bool value)
         {
             Service.Log($"Condition chage: {flag}={value}");
+            if(flag == ConditionFlag.BetweenAreas51 && !value)
+                Service.LostActionsHolster = new();
         }
     }
 }
