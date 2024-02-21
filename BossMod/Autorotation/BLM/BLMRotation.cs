@@ -46,8 +46,7 @@ namespace BossMod.BLM
 
             public AID BestFire1 => Paradox ? AID.Paradox : AID.Fire1;
             public AID BestFire2 => Unlocked(AID.HighFire2) ? AID.HighFire2 : AID.Fire2;
-            public AID BestBlizzard2 =>
-                Unlocked(AID.HighBlizzard2) ? AID.HighBlizzard2 : AID.Blizzard2;
+            public AID BestBlizzard2 => Unlocked(AID.HighBlizzard2) ? AID.HighBlizzard2 : AID.Blizzard2;
 
             // statuses
             public SID ExpectedThunder1 => Unlocked(AID.Thunder3) ? SID.Thunder3 : SID.Thunder1;
@@ -62,29 +61,35 @@ namespace BossMod.BLM
 
             public bool Unlocked(TraitID tid) => Definitions.Unlocked(tid, Level, UnlockProgress);
 
-            public int GetAdjustedFireCost(int mpCost) => AdjustCost(
-                ElementalLevel switch
-                {
-                    0 => mpCost,
-                    > 0 => UmbralHearts > 0 ? mpCost : mpCost * 2,
-                    < 0 => 0
-                });
+            public int GetAdjustedFireCost(int mpCost) =>
+                AdjustCost(
+                    ElementalLevel switch
+                    {
+                        0 => mpCost,
+                        > 0 => UmbralHearts > 0 ? mpCost : mpCost * 2,
+                        < 0 => 0
+                    }
+                );
 
-            public int GetAdjustedIceCost(int mpCost) => AdjustCost(
-                ElementalLevel switch
-                {
-                    -3 => 0,
-                    -2 => mpCost / 2,
-                    -1 => mpCost / 4 * 3,
-                    _ => mpCost
-                });
+            public int GetAdjustedIceCost(int mpCost) =>
+                AdjustCost(
+                    ElementalLevel switch
+                    {
+                        -3 => 0,
+                        -2 => mpCost / 2,
+                        -1 => mpCost / 4 * 3,
+                        _ => mpCost
+                    }
+                );
 
             public int AdjustCost(int mpCost) => MagicBurstLeft > GCD ? mpCost / 100 * 130 : mpCost;
 
             // FoM drains MP every half-tick, deducting a random amount between 50% and 150% of 1100 MP
             private const int MAXIMUM_FOM_TICK = 1650;
+
             // Lucid Dreaming's refresh effect is then applied on top of that (so is Cure II, which is 1000 MP per tick, but i don't know the SID for it)
-            public int MPDrainPerHalfTick => (FontOfMagicLeft > 0 ? MAXIMUM_FOM_TICK : 0) - (LucidDreamingLeft > 0 ? 550 : 0);
+            public int MPDrainPerHalfTick =>
+                (FontOfMagicLeft > 0 ? MAXIMUM_FOM_TICK : 0) - (LucidDreamingLeft > 0 ? 550 : 0);
 
             public int ExpectedMPAfter(float delay)
             {
@@ -100,9 +105,12 @@ namespace BossMod.BLM
 
                 while (delay > 0)
                 {
-                    if (evenTick) {
+                    if (evenTick)
+                    {
                         expected += perTick;
-                    } else {
+                    }
+                    else
+                    {
                         // lucid dreaming applies a mana drain of -550 (in other words, +550 MP every 3 seconds) but
                         // it does not regen mana in astral fire
                         // HOWEVER, it does reduce the mana drain of Font of Magic EVEN DURING astral fire
@@ -112,7 +120,8 @@ namespace BossMod.BLM
                         expected -= drainPerTick;
                     }
 
-                    if (expected < 2000 && mightEther) {
+                    if (expected < 2000 && mightEther)
+                    {
                         expected += 5000;
                         mightEther = false; // 50% chance to expire
                     }
@@ -148,8 +157,7 @@ namespace BossMod.BLM
             }
 
             // in addition to slidecasting, this is also the time until the provided spell spends MP
-            public float GetSlidecastTime(AID action) =>
-                MathF.Max(0f, GetCastTime(action) - 0.500f);
+            public float GetSlidecastTime(AID action) => MathF.Max(0f, GetCastTime(action) - 0.500f);
 
             public float GetCastEnd(AID action) => GetCastTime(action) + GCD;
 
@@ -220,10 +228,7 @@ namespace BossMod.BLM
         {
             if (strategy.CombatTimer > -100 && strategy.CombatTimer < 0 && state.TargetingEnemy)
             {
-                if (
-                    strategy.CombatTimer > -state.GetCastTime(AID.Fire3)
-                    && state.ElementalLevel == 0
-                )
+                if (strategy.CombatTimer > -state.GetCastTime(AID.Fire3) && state.ElementalLevel == 0)
                     return AID.Fire3;
 
                 if (strategy.CombatTimer > -1 && state.TargetThunderLeft == 0)
@@ -250,7 +255,9 @@ namespace BossMod.BLM
                 && state.Unlocked(AID.Fire4)
                 && state.ElementalLevel == 3
                 && state.ElementalLeft
-                    < state.GCD + state.GetCastTime(AID.Fire4) + state.GetCastTime(AID.Fire1)
+                    < state.GCD
+                        + MathF.Max(state.SpellGCDTime, state.GetCastTime(AID.Fire4))
+                        + state.GetCastTime(AID.Fire1)
             )
             {
                 // use despair now if f1 will leave us with too little mana
@@ -292,9 +299,7 @@ namespace BossMod.BLM
                     : state.BestThunder1;
 
             // standard gcd loop
-            return state.ElementalLevel > 0
-                ? GetFireGCD(state, strategy)
-                : GetIceGCD(state, strategy);
+            return state.ElementalLevel > 0 ? GetFireGCD(state, strategy) : GetIceGCD(state, strategy);
         }
 
         public static AID GetFireGCD(State state, Strategy strategy)
@@ -316,9 +321,7 @@ namespace BossMod.BLM
                 if (state.UmbralHearts == 1 && canFlare)
                     return AID.Flare;
 
-                if (
-                    CanCast(state, strategy, state.BestFire2, state.GetAdjustedFireCost(1500) + 800)
-                )
+                if (CanCast(state, strategy, state.BestFire2, state.GetAdjustedFireCost(1500) + 800))
                     return state.BestFire2;
 
                 if (canFlare)
@@ -326,10 +329,7 @@ namespace BossMod.BLM
             }
             else
             {
-                if (
-                    state.ElementalLevel < 3
-                    && CanCast(state, strategy, AID.Fire3, state.GetAdjustedFireCost(2000))
-                )
+                if (state.ElementalLevel < 3 && CanCast(state, strategy, AID.Fire3, state.GetAdjustedFireCost(2000)))
                     return AID.Fire3;
 
                 if (CanCast(state, strategy, AID.Fire4, state.GetAdjustedFireCost(800) + 800))
@@ -337,11 +337,7 @@ namespace BossMod.BLM
 
                 // before F4 unlock, use firestarter proc for damage
                 // (after F4 unlock we save it for fast ice -> fire swap)
-                if (
-                    !state.Unlocked(AID.Fire4)
-                    && state.FirestarterLeft > state.GCD
-                    && state.Unlocked(AID.Fire3)
-                )
+                if (!state.Unlocked(AID.Fire4) && state.FirestarterLeft > state.GCD && state.Unlocked(AID.Fire3))
                     return AID.Fire3;
 
                 if (CanCast(state, strategy, state.BestFire1, state.GetAdjustedFireCost(800) + 800))
@@ -366,10 +362,7 @@ namespace BossMod.BLM
 
             // if fight ending, dump resources instead of switching to ice
             // (assuming <800 MP left here, otherwise one of the earlier branches would have been taken)
-            if (
-                strategy.FightEndIn > 0
-                && strategy.FightEndIn < state.GetCastEnd(AID.Blizzard3) + state.SpellGCDTime
-            )
+            if (strategy.FightEndIn > 0 && strategy.FightEndIn < state.GetCastEnd(AID.Blizzard3) + state.SpellGCDTime)
             {
                 if (CanPoly(state, strategy, 1))
                     return state.BestPolySpell;
@@ -394,11 +387,7 @@ namespace BossMod.BLM
         public static AID GetIceGCD(State state, Strategy strategy)
         {
             // get max hearts for swap
-            if (
-                state.UmbralHearts < 3
-                && state.Unlocked(TraitID.EnhancedFreeze)
-                && state.ElementalLevel < 0
-            )
+            if (state.UmbralHearts < 3 && state.Unlocked(TraitID.EnhancedFreeze) && state.ElementalLevel < 0)
             {
                 if (strategy.UseAOERotation && CanCast(state, strategy, AID.Freeze, 0))
                     return AID.Freeze;
@@ -438,10 +427,7 @@ namespace BossMod.BLM
             }
             else
             {
-                if (
-                    CanCast(state, strategy, AID.Blizzard3, state.GetAdjustedIceCost(800))
-                    && state.ElementalLevel > -3
-                )
+                if (CanCast(state, strategy, AID.Blizzard3, state.GetAdjustedIceCost(800)) && state.ElementalLevel > -3)
                     return AID.Blizzard3;
 
                 // in umbral ice, paradox costs no mp and has no cast time, so no check
@@ -485,22 +471,21 @@ namespace BossMod.BLM
             )
                 return ActionID.MakeSpell(AID.Transpose);
 
-            if (
-                state.CurMP < 800
-                && state.ElementalLevel == 3
-                && CanUseManafont(state, strategy, deadline)
-            )
+            if (state.CurMP < 800 && state.ElementalLevel == 3 && CanUseManafont(state, strategy, deadline))
                 return ActionID.MakeSpell(AID.Manafont);
 
             if (state.TriplecastLeft > state.GCD)
             {
-                if (state.CanWeave(CDGroup.Amplifier, 0.6f, deadline) && state.Polyglot < 2 && state.ElementalLevel != 0)
+                if (
+                    state.CanWeave(CDGroup.Amplifier, 0.6f, deadline)
+                    && state.Polyglot < 2
+                    && state.ElementalLevel != 0
+                )
                     return ActionID.MakeSpell(AID.Amplifier);
 
                 if (
                     state.CanWeave(CDGroup.LeyLines, 0.6f, deadline)
-                    && strategy.LeylinesStrategy
-                        != CommonRotation.Strategy.OffensiveAbilityUse.Delay
+                    && strategy.LeylinesStrategy != CommonRotation.Strategy.OffensiveAbilityUse.Delay
                     // don't place leylines after opener, let the player do it
                     && strategy.CombatTimer < 60
                 )
@@ -516,8 +501,7 @@ namespace BossMod.BLM
                     state.CanWeave(state.CD(CDGroup.Triplecast) - 60, 0.6f, deadline)
                     && (
                         strategy.CombatTimer > 0 && strategy.CombatTimer < 60
-                        || strategy.TriplecastStrategy
-                            == CommonRotation.Strategy.OffensiveAbilityUse.Force
+                        || strategy.TriplecastStrategy == CommonRotation.Strategy.OffensiveAbilityUse.Force
                     )
                 )
                     return ActionID.MakeSpell(AID.Triplecast);

@@ -85,19 +85,15 @@ namespace BossMod.BLM
                     Player,
                     !Player.InCombat
                         && (
-                            _state.ElementalLevel > 0 && _state.CurMP < 10000
-                            || _state.ElementalLevel < 0
-                                && _state.CurMP == 10000
-                                && _state.UmbralHearts == _state.MaxHearts
-                                && _state.FirestarterLeft > 0
-                            || _state.ElementalLevel != 0 && _state.ElementalLeft < 3
+                            _state.ElementalLevel > 0
+                            || _state.ElementalLevel != 0 && _state.ElementalLeft < 5 && !_state.Unlocked(AID.UmbralSoul)
                         )
                 );
             if (_state.Unlocked(AID.UmbralSoul))
                 SimulateManualActionForAI(
                     ActionID.MakeSpell(AID.UmbralSoul),
                     Player,
-                    !Player.InCombat && _state.ElementalLevel < 0 && _state.UmbralHearts < _state.MaxHearts
+                    !Player.InCombat && _state.ElementalLevel < 0 && (_state.ElementalLevel > -3 || _state.UmbralHearts < _state.MaxHearts || _state.ElementalLeft < 5)
                 );
             if (_state.Unlocked(AID.Manaward))
                 SimulateManualActionForAI(
