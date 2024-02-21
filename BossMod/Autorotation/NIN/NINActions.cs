@@ -19,9 +19,6 @@ namespace BossMod.NIN
 
         private bool _mudraDebounce;
 
-        private delegate byte ExecuteCommandDelegate(int id, uint statusId, uint unk1, uint sourceId, int unk2);
-        private readonly ExecuteCommandDelegate ExecuteCommand;
-
         public Actions(Autorotation autorot, Actor player)
             : base(autorot, player, Definitions.UnlockQuests, Definitions.SupportedActions)
         {
@@ -39,10 +36,6 @@ namespace BossMod.NIN
 
             _config.Modified += OnConfigModified;
             OnConfigModified(null, EventArgs.Empty);
-
-            ExecuteCommand = Marshal.GetDelegateForFunctionPointer<ExecuteCommandDelegate>(
-                Service.SigScanner.ScanText("E8 ?? ?? ?? ?? 8D 43 0A")
-            );
         }
 
         public override CommonRotation.PlayerState GetState() => _state;
@@ -57,7 +50,7 @@ namespace BossMod.NIN
         protected override NextAction CalculateAutomaticGCD()
         {
             if (_strategy.CombatTimer < 0 && _strategy.AutoUnhide && _state.Hidden)
-                StatusOff((uint)SID.Hidden);
+                return StatusOff((uint)SID.Hidden);
 
             // use huton out of combat in duties, but don't do it in overworld (it's annoying)
             var shouldAutoGcd =
@@ -243,18 +236,6 @@ namespace BossMod.NIN
             if (tarObject.NameId == 541)
                 return true;
             return Service.LuminaRow<Lumina.Excel.GeneratedSheets.BNpcBase>(tarObject.DataId)?.Rank is 1 or 2 or 6;
-        }
-
-        private unsafe void StatusOff(uint sid)
-        {
-            var p = Service.ObjectTable[Player.SpawnIndex] as Dalamud.Game.ClientState.Objects.Types.BattleChara;
-            if (p == null)
-                return;
-            var s = (FFXIVClientStructs.FFXIV.Client.Game.StatusManager*)p.StatusList.Address;
-            var i = s->GetStatusIndex(sid);
-            if (i < 0)
-                return;
-            ExecuteCommand(104, sid, 0, s->GetSourceId(i), 0);
         }
     }
 }
