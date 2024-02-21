@@ -31,7 +31,7 @@ namespace BossMod
             _debugWindow?.Dispose();
         }
 
-        public int IndexOf(int actionID)
+        public int IndexOf(uint actionID)
         {
             if (!IsActive)
                 return -1;

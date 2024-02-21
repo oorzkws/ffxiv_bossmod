@@ -88,7 +88,7 @@ namespace BossMod
         public void Push(ActionID action, Actor? target, Vector3 targetPos, ActionDefinition def, Func<Actor?, bool>? condition, bool simulated = false)
         {
             int cdGroup = GetCooldownGroup(action, def);
-            bool isGCD = cdGroup == CommonDefinitions.GCDGroup || CommonDefinitions.IsGCDLike(action.ID);
+            bool isGCD = cdGroup == CommonDefinitions.GCDGroup;
             float expire = isGCD ? 1.0f : 3.0f;
             if (_cooldowns[cdGroup] - expire > def.CooldownAtFirstCharge)
             {
