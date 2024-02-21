@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using Dalamud.Game.ClientState.JobGauge.Types;
 
 namespace BossMod.BLM

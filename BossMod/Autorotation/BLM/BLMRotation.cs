@@ -1,12 +1,4 @@
 ﻿using System;
-using System.Data;
-using System.Net.NetworkInformation;
-using System.Security.Cryptography.X509Certificates;
-using BossMod.Components;
-using BossMod.ReplayAnalysis;
-using Dalamud.Game.ClientState.Structs;
-using FFXIVClientStructs.FFXIV.Client.Game;
-using Lumina.Excel.GeneratedSheets;
 
 namespace BossMod.BLM
 {

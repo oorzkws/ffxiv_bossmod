@@ -1,7 +1,5 @@
 using System;
-using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.JobGauge.Types;
-using ImGuiNET;
 
 namespace BossMod.DRK
 {
