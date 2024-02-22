@@ -337,6 +337,9 @@ namespace BossMod.MNK
 
                 if (state.LostExcellenceLeft > 0 && state.HsacLeft == 0 && state.CanWeave(state.DutyActionCD(LostActionID.BannerHonoredSacrifice), 0.6f, deadline))
                     return ActionID.MakeSpell(LostActionID.BannerHonoredSacrifice);
+
+                if (state.LostExcellenceLeft > 0 && state.HsacLeft > 0 && state.CanWeave(state.PotionCD, 0f, deadline))
+                    return CommonDefinitions.IDPotionStr;
             }
 
             if (state.GCD <= 0.800f && ShouldUseRoF(state, strategy, deadline))
