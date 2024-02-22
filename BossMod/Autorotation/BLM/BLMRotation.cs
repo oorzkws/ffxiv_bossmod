@@ -462,11 +462,10 @@ namespace BossMod.BLM
             )
                 return ActionID.MakeSpell(AID.Transpose);
 
-            // TODO this is wrong, we can only transpose if we CURRENTLY have 10k MP since it will switch off regen as soon as its used
             if (
                 state.FirestarterLeft > state.GCD
                 && state.ElementalLevel < 0
-                && CanCast(state, strategy, 0f, 10000)
+                && state.CurMP >= 9600
                 && state.CanWeave(CDGroup.Transpose, 0.6f, deadline)
             )
                 return ActionID.MakeSpell(AID.Transpose);

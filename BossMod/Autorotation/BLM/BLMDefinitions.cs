@@ -121,6 +121,7 @@ namespace BossMod.BLM
         AutoEther = 2343, // applied by Resistance Ether Kit to self
         MagicBurst = 1652, // applied by Lost Chainspell, 30% MP cost increase
         LostFontOfMagic = 2332, // applied by Lost Font of Magic to self
+        LostChainspell = 2560,
     }
 
     public enum Aspect : uint

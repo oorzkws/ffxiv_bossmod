@@ -26,6 +26,7 @@ namespace BossMod.BLM
             SupportedSpell(AID.Triplecast).Condition = _ => _state.TriplecastLeft == 0;
             SupportedSpell(AID.Sharpcast).Condition = _ => _state.SharpcastLeft == 0;
             SupportedSpell(AID.Manafont).Condition = _ => _state.CurMP <= 7000;
+            SupportedSpell(AID.Amplifier).Condition = _ => _state.Polyglot < 2;
 
             _config.Modified += OnConfigModified;
             OnConfigModified(null, EventArgs.Empty);
@@ -86,14 +87,22 @@ namespace BossMod.BLM
                     !Player.InCombat
                         && (
                             _state.ElementalLevel > 0
-                            || _state.ElementalLevel != 0 && _state.ElementalLeft < 5 && !_state.Unlocked(AID.UmbralSoul)
+                            || _state.ElementalLevel != 0
+                                && _state.ElementalLeft < 5
+                                && !_state.Unlocked(AID.UmbralSoul)
                         )
                 );
             if (_state.Unlocked(AID.UmbralSoul))
                 SimulateManualActionForAI(
                     ActionID.MakeSpell(AID.UmbralSoul),
                     Player,
-                    !Player.InCombat && _state.ElementalLevel < 0 && (_state.ElementalLevel > -3 || _state.UmbralHearts < _state.MaxHearts || _state.ElementalLeft < 5)
+                    !Player.InCombat
+                        && _state.ElementalLevel < 0
+                        && (
+                            _state.ElementalLevel > -3
+                            || _state.UmbralHearts < _state.MaxHearts
+                            || _state.ElementalLeft < 5
+                        )
                 );
             if (_state.Unlocked(AID.Manaward))
                 SimulateManualActionForAI(
@@ -169,8 +178,7 @@ namespace BossMod.BLM
             _state.TriplecastLeft = StatusDetails(Player, SID.Triplecast, Player.InstanceID).Left;
             _state.SwiftcastLeft = Math.Max(
                 StatusDetails(Player, SID.Swiftcast, Player.InstanceID).Left,
-                // Lost Chainspell
-                StatusDetails(Player, 2560, Player.InstanceID).Left
+                StatusDetails(Player, SID.LostChainspell, Player.InstanceID).Left
             );
             _state.SharpcastLeft = StatusDetails(Player, SID.Sharpcast, Player.InstanceID).Left;
             _state.ThundercloudLeft = StatusDetails(Player, SID.Thundercloud, Player.InstanceID).Left;
