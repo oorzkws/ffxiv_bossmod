@@ -8,6 +8,7 @@ namespace BossMod.BLM
         public const int AutoActionST = AutoActionFirstCustom + 0;
         public const int AutoActionAOE = AutoActionFirstCustom + 1;
         public const int AutoActionFiller = AutoActionFirstCustom + 2;
+        public const int AutoActionLFS = AutoActionFirstCustom + 3;
 
         private BLMConfig _config;
         private Rotation.State _state;
@@ -108,7 +109,7 @@ namespace BossMod.BLM
                 SimulateManualActionForAI(
                     ActionID.MakeSpell(AID.Manaward),
                     Player,
-                    Player.HP.Cur < Player.HP.Max * 0.8f
+                    Player.HP.Cur < Player.HP.Max * 0.8f && Player.InCombat
                 );
             if (_state.Unlocked(AID.Sharpcast))
                 SimulateManualActionForAI(
@@ -205,6 +206,7 @@ namespace BossMod.BLM
             SupportedSpell(AID.Fire2).PlaceholderForAuto = _config.FullRotation ? AutoActionAOE : AutoActionNone;
             SupportedSpell(AID.Blizzard1).PlaceholderForAuto = SupportedSpell(AID.Blizzard4).PlaceholderForAuto =
                 _config.FullRotation ? AutoActionFiller : AutoActionNone;
+            SupportedSpell(AID.Thunder3).PlaceholderForAuto = _config.FullRotation ? AutoActionLFS : AutoActionNone;
 
             // smart targets
             SupportedSpell(AID.AetherialManipulation).TransformTarget = _config.SmartDash

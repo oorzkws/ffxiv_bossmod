@@ -32,6 +32,7 @@ namespace BossMod.BLM
             public float NextPolyglot => EnochianTimer;
             public int MaxHearts => Unlocked(TraitID.EnhancedFreeze) ? 3 : 0;
 
+            // this is NOT accurate, mana drain ticks can be offset arbitrarily from regen ticks. however, actually calculating that is a huge pita
             public float TimeToManaHalfTick => TimeToManaTick > 1.5 ? TimeToManaTick - 1.5f : TimeToManaTick + 1.5f;
 
             public float InstantCastLeft => MathF.Max(SwiftcastLeft, TriplecastLeft);
@@ -176,6 +177,7 @@ namespace BossMod.BLM
             public OffensiveAbilityUse LeylinesStrategy;
             public bool UseAOERotation;
             public bool AutoRefresh;
+            public bool UseLFS;
 
             public void ApplyStrategyOverrides(uint[] overrides)
             {
