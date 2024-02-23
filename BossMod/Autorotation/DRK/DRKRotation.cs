@@ -168,7 +168,7 @@ namespace BossMod.DRK
 
         public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline, bool lastSlot)
         {
-            if (strategy.CombatTimer > -100 && strategy.CombatTimer < 0)
+            if (strategy.CombatTimer < 0)
             {
                 if (strategy.CombatTimer > -4 && state.BloodWeapon.Left == 0 && state.Unlocked(AID.BloodWeapon))
                     return ActionID.MakeSpell(AID.BloodWeapon);
