@@ -133,6 +133,7 @@ namespace BossMod
                     Class.NIN or Class.ROG => typeof(NIN.Actions),
                     Class.DNC => typeof(DNC.Actions),
                     Class.DRK => typeof(DRK.Actions),
+                    Class.AST => typeof(AST.Actions),
                     _ => null
                 };
             }

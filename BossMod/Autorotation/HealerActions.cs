@@ -20,6 +20,8 @@ namespace BossMod
         protected bool AllowProtect { get; private set; }
         protected PartyMemberState[] PartyMemberStates { get; private set; } = new PartyMemberState[PartyState.MaxPartySize];
 
+        protected Actor? RaiseTarget { get; private set; }
+
         protected HealerActions(Autorotation autorot, Actor player, uint[] unlockData, Dictionary<ActionID, ActionDefinition> supportedActions)
             : base(autorot, player, unlockData, supportedActions)
         {
@@ -182,6 +184,30 @@ namespace BossMod
                 }
             }
             return best;
+        }
+
+        protected Actor? FindRaiseTarget() {
+            var party = Autorot
+                .WorldState.Party.WithoutSlot(includeDead: true, partyOnly: true)
+                .Where(x => (x.Position - Player.Position).Length() - x.HitboxRadius - Player.HitboxRadius <= 30);
+            // if all tanks dead, raise tank, otherwise h -> t -> d
+            var tanks = party.Where(x => x.Class.GetRole() == Role.Tank);
+            if (tanks.Any() && tanks.All(CanBeRaised))
+                return tanks.First();
+
+            return party
+                .Where(CanBeRaised)
+                .MaxBy(
+                    x =>
+                        x.Class.GetRole() == Role.Healer
+                            ? 10
+                            : x.Class.GetRole() == Role.Tank
+                                ? 9
+                                : x.Class is Class.RDM or Class.SMN
+                                    ? 8
+                                    : 7
+                );
+
         }
 
         protected static bool IsHOT(uint sid)

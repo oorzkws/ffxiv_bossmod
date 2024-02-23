@@ -79,9 +79,6 @@ namespace BossMod.SGE
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
         {
-            if (AutoAction < AutoActionAIFight)
-                return new();
-
             NextAction res = new();
             if (_state.CanWeave(deadline - _state.OGCDSlotLength)) // first ogcd slot
                 res = GetNextBestOGCD(deadline - _state.OGCDSlotLength);
@@ -182,30 +179,6 @@ namespace BossMod.SGE
                         : null;
         }
 
-        private Actor? FindRaiseTarget()
-        {
-            var party = Autorot
-                .WorldState.Party.WithoutSlot(includeDead: true, partyOnly: true)
-                .Where(x => RangeToTarget(x) <= 30);
-            // if all tanks dead, raise tank, otherwise h -> t -> d
-            var tanks = party.Where(x => x.Class.GetRole() == Role.Tank);
-            if (tanks.Any() && tanks.All(CanBeRaised))
-                return tanks.First();
-
-            return party
-                .Where(CanBeRaised)
-                .MaxBy(
-                    x =>
-                        x.Class.GetRole() == Role.Healer
-                            ? 10
-                            : x.Class.GetRole() == Role.Tank
-                                ? 9
-                                : x.Class is Class.RDM or Class.SMN
-                                    ? 8
-                                    : 7
-                );
-        }
-
         private Actor? FindKardiaTarget()
         {
             if (!_config.AutoKardia)
@@ -221,11 +194,6 @@ namespace BossMod.SGE
                 return tanks.First();
 
             return null;
-        }
-
-        private float RangeToTarget(Actor a1)
-        {
-            return (a1.Position - Player.Position).Length() - a1.HitboxRadius - Player.HitboxRadius;
         }
     }
 }

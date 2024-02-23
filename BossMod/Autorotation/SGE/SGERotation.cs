@@ -122,6 +122,9 @@ namespace BossMod.SGE
 
         public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline)
         {
+            if (strategy.CombatTimer < 0)
+                return new();
+
             if (
                 state.CurMP <= 7000
                 && state.Unlocked(AID.LucidDreaming)
