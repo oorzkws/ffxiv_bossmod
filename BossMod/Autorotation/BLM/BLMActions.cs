@@ -210,7 +210,7 @@ namespace BossMod.BLM
 
             // smart targets
             SupportedSpell(AID.AetherialManipulation).TransformTarget = _config.SmartDash
-                ? (tar) => Autorot.SecondaryTarget ?? tar
+                ? SmartTargetFriendly
                 : null;
 
             _strategy.AutoRefresh = _config.AutoIceRefresh;
