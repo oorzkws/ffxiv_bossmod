@@ -86,6 +86,9 @@ namespace BossMod.AST
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
         {
+            if (AutoAction < AutoActionAIFight)
+                return new();
+
             if (
                 _autoRaiseTarget != null
                 && _state.SwiftcastLeft == 0
@@ -95,9 +98,9 @@ namespace BossMod.AST
 
             ActionID res = new();
             if (_state.CanWeave(deadline - _state.OGCDSlotLength)) // first ogcd slot
-                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline - _state.OGCDSlotLength, false);
+                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline - _state.OGCDSlotLength);
             if (!res && _state.CanWeave(deadline)) // second/only ogcd slot
-                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline, true);
+                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline);
 
             var tarOverride = Autorot.PrimaryTarget;
             if (res.ID is 4401 or 4402 or 4403)
@@ -108,7 +111,20 @@ namespace BossMod.AST
             return MakeResult(res, tarOverride);
         }
 
-        protected override void QueueAIActions() { }
+        protected override void QueueAIActions() {
+            if (_state.Unlocked(AID.Draw)) {
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.Draw),
+                    Player,
+                    !Player.InCombat && !_state.HasCard
+                );
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.Redraw),
+                    Player,
+                    !Player.InCombat && _state.HasCard && _state.Seals.Any(x => x == _state.NextSeal)
+                );
+            }
+        }
 
         protected override void UpdateInternalState(int autoAction)
         {
@@ -224,6 +240,13 @@ namespace BossMod.AST
                         : _config.Mouseover
                             ? SmartTargetFriendlyOrSelf
                             : null;
+
+            SupportedSpell(AID.EarthlyStar).TransformPosition = _config.SmartStar switch
+            {
+                ASTConfig.StarLocation.Target => () => Autorot.PrimaryTarget?.PosRot.XYZ(),
+                ASTConfig.StarLocation.Self => () => Player.PosRot.XYZ(),
+                _ => null
+            };
         }
 
         // so this function is designed to pick an optimal card target for whatever card you have in a pug environment,

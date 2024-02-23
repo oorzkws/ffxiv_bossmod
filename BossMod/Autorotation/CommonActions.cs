@@ -65,6 +65,7 @@ namespace BossMod
             public int PlaceholderForAuto; // if set, attempting to execute this action would instead initiate auto-strategy
             public Func<ActionID>? TransformAction;
             public Func<Actor?, Actor?>? TransformTarget;
+            public Func<Vector3?>? TransformPosition;
 
             public SupportedAction(ActionDefinition definition, bool isGT)
             {
@@ -252,6 +253,15 @@ namespace BossMod
                 if (forcedGTPos != null)
                 {
                     _mq.Push(action, null, forcedGTPos.Value, supportedAction.Definition, supportedAction.Condition);
+                    return true;
+                }
+
+                if (supportedAction.TransformPosition != null)
+                {
+                    var pos = supportedAction.TransformPosition();
+                    if (pos == null)
+                        return false;
+                    _mq.Push(action, null, pos.Value, supportedAction.Definition, supportedAction.Condition);
                     return true;
                 }
 

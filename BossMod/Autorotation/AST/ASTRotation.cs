@@ -171,9 +171,7 @@ namespace BossMod.AST
 
         public static AID GetNextBestGCD(State state, Strategy strategy)
         {
-            if (!state.TargetingEnemy) return AID.None;
-
-            if (strategy.CombatTimer < 0)
+            if (strategy.CombatTimer > -100 && strategy.CombatTimer < 0)
             {
                 if (strategy.CombatTimer > -1.5)
                     return AID.FallMalefic;
@@ -195,7 +193,7 @@ namespace BossMod.AST
             return AID.None;
         }
 
-        public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline, bool lastSlot)
+        public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline)
         {
             if (ShouldDraw(state, strategy) && state.CanWeave(state.CD(CDGroup.Draw) - 30, 0.6f, deadline))
                 return ActionID.MakeSpell(AID.Draw);

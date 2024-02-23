@@ -79,6 +79,9 @@ namespace BossMod.SGE
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
         {
+            if (AutoAction < AutoActionAIFight)
+                return new();
+
             NextAction res = new();
             if (_state.CanWeave(deadline - _state.OGCDSlotLength)) // first ogcd slot
                 res = GetNextBestOGCD(deadline - _state.OGCDSlotLength);

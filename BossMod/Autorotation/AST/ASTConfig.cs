@@ -18,6 +18,15 @@ namespace BossMod.AST
             AutoSlow = 3
         }
 
+        public enum StarLocation {
+            [PropertyDisplay("On current target")]
+            Target = 0,
+            [PropertyDisplay("On self")]
+            Self = 1,
+            [PropertyDisplay("Disabled (use normal ground targeting)")]
+            None = 2,
+        }
+
         [PropertyDisplay("Execute optimal rotation on Malefic (ST) or Gravity (AOE)")]
         public bool FullRotation = true;
 
@@ -35,5 +44,8 @@ namespace BossMod.AST
 
         [PropertyDisplay("Automatically draw and play cards")]
         public bool AutoCard = true;
+
+        [PropertyDisplay("Instant Earthly Star placement")]
+        public StarLocation SmartStar = StarLocation.Target;
     }
 }
