@@ -70,10 +70,7 @@ namespace BossMod.AST
 
             if (_autoRaiseTarget != null && _state.Unlocked(AID.Ascend))
             {
-                if (
-                    _config.AutoRaise == ASTConfig.RaiseBehavior.Auto
-                    && _state.SwiftcastLeft > _state.GCD
-                )
+                if (_config.AutoRaise == ASTConfig.RaiseBehavior.Auto && _state.SwiftcastLeft > _state.GCD)
                     return MakeResult(AID.Ascend, _autoRaiseTarget);
 
                 if (_config.AutoRaise == ASTConfig.RaiseBehavior.AutoSlow)
@@ -111,13 +108,11 @@ namespace BossMod.AST
             return MakeResult(res, tarOverride);
         }
 
-        protected override void QueueAIActions() {
-            if (_state.Unlocked(AID.Draw)) {
-                SimulateManualActionForAI(
-                    ActionID.MakeSpell(AID.Draw),
-                    Player,
-                    !Player.InCombat && !_state.HasCard
-                );
+        protected override void QueueAIActions()
+        {
+            if (_state.Unlocked(AID.Draw))
+            {
+                SimulateManualActionForAI(ActionID.MakeSpell(AID.Draw), Player, !Player.InCombat && !_state.HasCard);
                 SimulateManualActionForAI(
                     ActionID.MakeSpell(AID.Redraw),
                     Player,
@@ -193,9 +188,7 @@ namespace BossMod.AST
                 Player.InstanceID
             ).Left;
 
-            _autoRaiseTarget = _config.AutoRaise
-                is ASTConfig.RaiseBehavior.Auto
-                    or ASTConfig.RaiseBehavior.AutoSlow
+            _autoRaiseTarget = _config.AutoRaise is ASTConfig.RaiseBehavior.Auto or ASTConfig.RaiseBehavior.AutoSlow
                 ? FindRaiseTarget()
                 : null;
         }
@@ -210,6 +203,10 @@ namespace BossMod.AST
                     _config.FullRotation ? AutoActionST : AutoActionNone;
             SupportedSpell(AID.Gravity).PlaceholderForAuto = SupportedSpell(AID.GravityII).PlaceholderForAuto =
                 _config.FullRotation ? AutoActionAOE : AutoActionNone;
+            SupportedSpell(AID.Combust).PlaceholderForAuto =
+                SupportedSpell(AID.CombustII).PlaceholderForAuto =
+                SupportedSpell(AID.CombustIII).PlaceholderForAuto =
+                    _config.FullRotation ? AutoActionFiller : AutoActionNone;
 
             SupportedSpell(AID.Ascend).TransformTarget = SupportedSpell(AID.Synastry).TransformTarget =
                 _config.Mouseover ? (tar) => Autorot.SecondaryTarget ?? tar : null;
@@ -293,14 +290,15 @@ namespace BossMod.AST
                 Class.BRD => 68,
                 Class.DNC => 67,
                 Class.DRK => 50,
-                _ => 1
+                _ => 0
             };
 
             if (act.Role == preferredRole)
-                prio += 200;
+                prio += 100;
 
+            // overwriting a card on a dps is probably worth more than putting a card on a tank idk i should do research
             if (HasCardBuff(act))
-                prio -= 200;
+                prio -= 150;
 
             foreach (var stat in act.Statuses)
             {
