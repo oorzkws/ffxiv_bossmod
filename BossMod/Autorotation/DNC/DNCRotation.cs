@@ -348,7 +348,7 @@ namespace BossMod.DNC
             if (state.Feathers == 0 || strategy.FeatherUse == Strategy.OffensiveAbilityUse.Delay)
                 return false;
 
-            if (state.Feathers == 4 || strategy.FeatherUse == Strategy.OffensiveAbilityUse.Force)
+            if (state.Feathers == 4 || strategy.FeatherUse == Strategy.OffensiveAbilityUse.Force || !state.Unlocked(AID.TechnicalStep))
                 return true;
 
             return state.TechFinishLeft > state.AnimationLock;
