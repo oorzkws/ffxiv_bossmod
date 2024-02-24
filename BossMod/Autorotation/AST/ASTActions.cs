@@ -275,7 +275,6 @@ namespace BossMod.AST
 
         private static int CardPriority(Actor act, Role preferredRole)
         {
-            Service.Log($"{act}");
             var prio = act.Class switch
             {
                 Class.NIN => 100,
