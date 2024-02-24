@@ -165,8 +165,8 @@ namespace BossMod.AST
         {
             if (state.LightspeedLeft > state.GCD)
                 castTime -= 2.5f;
-            
-            return MathF.Max(0, castTime) <= strategy.ForceMovementIn;
+
+            return strategy.ForceMovementIn >= state.GCD + MathF.Max(0, castTime);
         }
 
         public static AID GetNextBestGCD(State state, Strategy strategy)
@@ -238,15 +238,14 @@ namespace BossMod.AST
                 return ActionID.MakeSpell(AID.Astrodyne);
 
             if (
-                (state.SealCount == 3 || state.AstrodyneLeft > 0)
-                && !state.HasCrown
+                !state.HasCrown
                 && state.Unlocked(AID.MinorArcana)
                 && state.CanWeave(CDGroup.MinorArcana, 0.6f, deadline)
             )
                 return ActionID.MakeSpell(AID.MinorArcana);
 
             if (
-                state.AstrodyneLeft > 0
+                state.CD(CDGroup.Divination) > 0
                 && state.DrawnCrownCard is CrownCard.Lord
                 && state.CanWeave(CDGroup.LadyOfCrowns, 0.6f, deadline)
             )

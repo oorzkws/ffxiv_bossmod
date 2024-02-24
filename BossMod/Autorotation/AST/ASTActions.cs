@@ -123,6 +123,7 @@ namespace BossMod.AST
 
         protected override void UpdateInternalState(int autoAction)
         {
+            base.UpdateInternalState(autoAction);
             UpdatePlayerState();
             FillCommonStrategy(_strategy, CommonDefinitions.IDPotionMnd);
 
@@ -289,6 +290,7 @@ namespace BossMod.AST
                 Class.BRD => 68,
                 Class.DNC => 67,
                 Class.DRK => 50,
+                Class.PLD => 49,
                 _ => 0
             };
 

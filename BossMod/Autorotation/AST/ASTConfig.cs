@@ -45,7 +45,7 @@ namespace BossMod.AST
         [PropertyDisplay("Automatically draw and play cards")]
         public bool AutoCard = true;
 
-        [PropertyDisplay("Instant Earthly Star placement")]
+        [PropertyDisplay("Earthly Star quick placement")]
         public StarLocation SmartStar = StarLocation.Target;
     }
 }
