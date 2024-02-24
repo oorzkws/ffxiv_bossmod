@@ -101,9 +101,9 @@ namespace BossMod.AST
 
             var tarOverride = Autorot.PrimaryTarget;
             if (res.ID is 4401 or 4402 or 4403)
-                tarOverride = SmartCardTarget(tarOverride, Role.Melee);
+                tarOverride = SmartCardTarget(tarOverride, MeleePriority);
             else if (res.ID is 4404 or 4405 or 4406)
-                tarOverride = SmartCardTarget(tarOverride, Role.Ranged);
+                tarOverride = SmartCardTarget(tarOverride, RangedPriority);
 
             return MakeResult(res, tarOverride);
         }
@@ -225,7 +225,7 @@ namespace BossMod.AST
                 SupportedSpell(AID.TheArrow).TransformTarget =
                 SupportedSpell(AID.TheSpear).TransformTarget =
                     _config.SmartCard
-                        ? (tar) => SmartCardTarget(tar, Role.Melee)
+                        ? (tar) => SmartCardTarget(tar, MeleePriority)
                         : _config.Mouseover
                             ? SmartTargetFriendlyOrSelf
                             : null;
@@ -234,7 +234,7 @@ namespace BossMod.AST
                 SupportedSpell(AID.TheEwer).TransformTarget =
                 SupportedSpell(AID.TheSpire).TransformTarget =
                     _config.SmartCard
-                        ? (tar) => SmartCardTarget(tar, Role.Ranged)
+                        ? (tar) => SmartCardTarget(tar, RangedPriority)
                         : _config.Mouseover
                             ? SmartTargetFriendlyOrSelf
                             : null;
@@ -270,36 +270,17 @@ namespace BossMod.AST
         // 6m
         // melee: SAM -> NIN -> DRK -> MNK -> DRG -> RPR
         // ranged: BLM -> DNC -> SMN -> MCH -> BRD -> RDM
-        private Actor? SmartCardTarget(Actor? primaryTarget, Role role) =>
+        private Actor? SmartCardTarget(Actor? primaryTarget, Func<Class, int> prioFunc) =>
             SmartTargetFriendly(primaryTarget)
-            ?? Autorot.WorldState.Party.WithoutSlot(false, true).MaxBy(act => CardPriority(act, role));
+            ?? Autorot.WorldState.Party.WithoutSlot(false, true).MaxBy(act => CardPriority(act, prioFunc));
 
-        private static int CardPriority(Actor act, Role preferredRole)
+        private static int CardPriority(Actor act, Func<Class, int> prioFunc)
         {
-            var prio = act.Class switch
-            {
-                Class.NIN => 100,
-                Class.SAM => 99,
-                Class.MNK => 88,
-                Class.RPR => 87,
-                Class.DRG => 86,
-                Class.BLM => 79,
-                Class.SMN => 78,
-                Class.RDM => 77,
-                Class.MCH => 69,
-                Class.BRD => 68,
-                Class.DNC => 67,
-                Class.DRK => 50,
-                Class.PLD => 49,
-                _ => 0
-            };
-
-            if (act.Role == preferredRole)
-                prio += 100;
+            var prio = prioFunc(act.Class);
 
             // overwriting a card on a dps is probably worth more than putting a card on a tank idk i should do research
             if (HasCardBuff(act))
-                prio -= 150;
+                prio -= 100;
 
             foreach (var stat in act.Statuses)
             {
@@ -319,6 +300,29 @@ namespace BossMod.AST
 
             return prio;
         }
+
+        private static int MeleePriority(Class c) => c switch {
+
+            Class.SAM => 100,
+            Class.NIN => 99,
+            Class.MNK => 90,
+            Class.RPR => 89,
+            Class.DRG => 88,
+            Class.DRK => 60,
+            Class.PLD => 50,
+            _ => 0
+        };
+
+        private static int RangedPriority(Class c) => c switch {
+
+                Class.BLM => 100,
+                Class.SMN => 99,
+                Class.RDM => 98,
+                Class.MCH => 89,
+                Class.BRD => 88,
+                Class.DNC => 87,
+                _ => 0
+        };
 
         private static bool HasCardBuff(Actor act) =>
             act.Statuses.Any(
