@@ -49,18 +49,7 @@ namespace BossMod.NIN
 
         protected override NextAction CalculateAutomaticGCD()
         {
-            if (_strategy.CombatTimer < 0 && _strategy.AutoUnhide && _state.Hidden)
-                return StatusOff((uint)SID.Hidden);
-
-            // use huton out of combat in duties, but don't do it in overworld (it's annoying)
-            var shouldAutoGcd =
-                AutoAction >= AutoActionAIFight
-                || AutoAction == AutoActionAIIdle
-                    // todo: should be skipped if duty complete (IDutyState.DutyCompleted) since we have nothing else to do
-                    // but that needs to be added on the framework level
-                    && (Service.Condition[ConditionFlag.BoundByDuty] || Service.Condition[ConditionFlag.BoundByDuty56]);
-
-            if (!shouldAutoGcd)
+            if (AutoAction < AutoActionAIFight)
                 return new();
 
             var aid = Rotation.GetNextBestGCD(_state, _strategy);
@@ -69,6 +58,9 @@ namespace BossMod.NIN
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
         {
+            if (_strategy.CombatTimer < 0 && _strategy.AutoUnhide && _state.Hidden)
+                return StatusOff(SID.Hidden);
+
             if (AutoAction < AutoActionAIFight)
                 return new();
 

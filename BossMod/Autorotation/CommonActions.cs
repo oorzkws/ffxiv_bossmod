@@ -511,8 +511,9 @@ namespace BossMod
             return (bestTarget, bestPrio);
         }
 
-        protected unsafe NextAction StatusOff(uint statusId)
+        protected unsafe NextAction StatusOff<SID>(SID status) where SID : Enum
         {
+            var statusId = (uint)(object)status;
             var p = Service.ObjectTable[Player.SpawnIndex] as Dalamud.Game.ClientState.Objects.Types.BattleChara;
             if (p == null) return new();
             var s = (FFXIVGame.StatusManager*)p.StatusList.Address;

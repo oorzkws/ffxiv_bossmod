@@ -150,7 +150,7 @@ namespace BossMod.NIN
 
             public enum PKUse : uint
             {
-                Automatic = 0, // use unless it would overcap huton
+                Automatic = 0, // use it bby, its damage
 
                 [PropertyDisplay("Do not automatically use")]
                 Delay = 1,
@@ -303,7 +303,7 @@ namespace BossMod.NIN
                 }
             }
 
-            if (state.KamaitachiLeft > state.GCD && state.HutonLeft < 50)
+            if (state.KamaitachiLeft > state.GCD && ShouldUsePK(state, strategy))
                 return AID.PhantomKamaitachi;
 
             if (state.RaijuReady.Left > state.GCD)
@@ -630,6 +630,14 @@ namespace BossMod.NIN
 
         private static bool ShouldUseCrush(State state, Strategy strategy, float deadline) =>
             state.Unlocked(AID.ArmorCrush) && state.HutonLeft - deadline < HUTON_REFRESH && state.HutonLeft > deadline;
+
+        private static bool ShouldUsePK(State state, Strategy strategy) => strategy.PKStrategy switch
+        {
+            // todo: do these need to be separated
+            Strategy.PKUse.Automatic or Strategy.PKUse.Force => true,
+            Strategy.PKUse.UseOutsideMelee => state.TargetingEnemy && state.RangeToTarget > 3,
+            _ => false,
+        };
 
         private static bool HaveTarget(State state, Strategy strategy) =>
             state.TargetingEnemy || strategy.NumPointBlankAOETargets > 0;
