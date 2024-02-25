@@ -161,8 +161,9 @@ namespace BossMod
 
         private bool CheckOGCD(Entry e, Actor player, float effAnimLock, float animLockDelay, float deadline)
         {
+            int cdGroup = GetCooldownGroup(e.Action, e.Definition);
             return e.Definition.CooldownGroup != CommonDefinitions.GCDGroup
-                && _cooldowns[e.Definition.CooldownGroup] - effAnimLock <= e.Definition.CooldownAtFirstCharge
+                && _cooldowns[cdGroup] - effAnimLock <= e.Definition.CooldownAtFirstCharge
                 && effAnimLock + e.Definition.AnimationLock + animLockDelay <= deadline
                 && e.Allowed(player);
         }
