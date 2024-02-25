@@ -235,6 +235,9 @@ namespace BossMod.RDM
                 }
             }
 
+            if (state.CurMP <= 7000 && state.CanWeave(CDGroup.LucidDreaming, 0.6f, deadline))
+                return ActionID.MakeSpell(AID.LucidDreaming);
+
             return new();
         }
     }
