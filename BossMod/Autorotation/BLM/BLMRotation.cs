@@ -479,6 +479,7 @@ namespace BossMod.BLM
             {
                 if (
                     state.CanWeave(CDGroup.Amplifier, 0.6f, deadline)
+                    && state.Unlocked(AID.Amplifier)
                     && state.Polyglot < 2
                     && state.ElementalLevel != 0
                 )

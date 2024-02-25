@@ -77,22 +77,15 @@ namespace BossMod.BLM
                 _strategy.LeylinesStrategy = CommonRotation.Strategy.OffensiveAbilityUse.Delay;
                 _strategy.TriplecastStrategy = CommonRotation.Strategy.OffensiveAbilityUse.Delay;
             }
+
+            if (_config.AutoLeylines is BLMConfig.AutoLL.None)
+                _strategy.LeylinesStrategy = CommonRotation.Strategy.OffensiveAbilityUse.Delay;
         }
 
         protected override void QueueAIActions()
         {
             if (_state.Unlocked(AID.Transpose))
-                SimulateManualActionForAI(
-                    ActionID.MakeSpell(AID.Transpose),
-                    Player,
-                    !Player.InCombat
-                        && (
-                            _state.ElementalLevel > 0
-                            || _state.ElementalLevel != 0
-                                && _state.ElementalLeft < 5
-                                && !_state.Unlocked(AID.UmbralSoul)
-                        )
-                );
+                SimulateManualActionForAI(ActionID.MakeSpell(AID.Transpose), Player, ShouldAITranspose());
             if (_state.Unlocked(AID.UmbralSoul))
                 SimulateManualActionForAI(
                     ActionID.MakeSpell(AID.UmbralSoul),
@@ -209,14 +202,37 @@ namespace BossMod.BLM
             SupportedSpell(AID.Thunder3).PlaceholderForAuto = _config.FullRotation ? AutoActionLFS : AutoActionNone;
 
             // smart targets
-            SupportedSpell(AID.AetherialManipulation).TransformTarget = _config.SmartDash
-                ? SmartTargetFriendly
-                : null;
+            SupportedSpell(AID.AetherialManipulation).TransformTarget = _config.SmartDash ? SmartTargetFriendly : null;
 
             _strategy.AutoRefresh = _config.AutoIceRefresh;
         }
 
         private int NumTargetsHitByAOE(Actor primary) =>
             Autorot.Hints.NumPriorityTargetsInAOECircle(primary.Position, 5);
+
+        private bool ShouldAITranspose()
+        {
+            if (Player.InCombat)
+                return false;
+
+            // always switch to ice out of combat, rotation handles the case where we have firestarter
+            if (_state.ElementalLevel > 0)
+                return true;
+
+            // umbral soul replacement at low level
+            if (_state.ElementalLevel < 0 && _state.ElementalLeft < 5 && !_state.Unlocked(AID.UmbralSoul))
+                return true;
+
+            // swap for free paradox
+            if (
+                _state.ElementalLeft == -3
+                && _state.UmbralHearts == 3
+                && !_state.Paradox
+                && _state.Unlocked(TraitID.AspectMastery5)
+            )
+                return true;
+
+            return false;
+        }
     }
 }
