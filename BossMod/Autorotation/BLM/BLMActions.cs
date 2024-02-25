@@ -123,8 +123,8 @@ namespace BossMod.BLM
         {
             if (AutoAction < AutoActionAIFight)
                 return new();
-            var aid = Rotation.GetNextBestGCD(_state, _strategy);
 
+            var aid = Rotation.GetNextBestGCD(_state, _strategy);
             return MakeResult(aid, Autorot.PrimaryTarget);
         }
 
