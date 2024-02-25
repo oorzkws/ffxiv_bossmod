@@ -225,7 +225,7 @@ namespace BossMod.BLM
 
             // swap for free paradox
             if (
-                _state.ElementalLeft == -3
+                _state.ElementalLevel == -3
                 && _state.UmbralHearts == 3
                 && !_state.Paradox
                 && _state.Unlocked(TraitID.AspectMastery5)
