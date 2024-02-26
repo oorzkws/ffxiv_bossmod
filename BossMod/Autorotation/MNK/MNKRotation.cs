@@ -30,6 +30,8 @@ namespace BossMod.MNK
             public bool HaveLunar => Nadi.HasFlag(Nadi.LUNAR);
             public bool HaveSolar => Nadi.HasFlag(Nadi.SOLAR);
 
+            public bool CanFormShift => Unlocked(AID.FormShift) && PerfectBalanceLeft == 0;
+
             public int BeastCount => BeastChakra.Count(x => x != Dalamud.Game.ClientState.JobGauge.Enums.BeastChakra.NONE);
 
             public bool ForcedLunar => BeastChakra[0] == Dalamud.Game.ClientState.JobGauge.Enums.BeastChakra.OPOOPO && BeastChakra[1] == Dalamud.Game.ClientState.JobGauge.Enums.BeastChakra.OPOOPO;
@@ -77,12 +79,13 @@ namespace BossMod.MNK
         // strategy configuration
         public class Strategy : CommonRotation.Strategy
         {
-            public int NumPointBlankAOETargets; // range 5 around self
-            public int NumEnlightenmentTargets; // range 10 width 2/4 rect
+            public int NumBlitzTargets; // 5y around self
+            public int NumPointBlankAOETargets; // 5y around self
+            public int NumEnlightenmentTargets; // 10y/4y rect
 
             public bool UseAOE;
 
-            public bool PreCombatFormShift;
+            public MNKConfig.FormShiftBehavior AutoFormShift;
 
             public bool UseSTQOpener;
 
@@ -241,20 +244,34 @@ namespace BossMod.MNK
                 if (state.Chakra < 5 && state.Unlocked(AID.Meditation))
                     return AID.Meditation;
 
-                if (strategy.CombatTimer > -20 && state.FormShiftLeft < 5 && state.Unlocked(AID.FormShift))
-                    return AID.FormShift;
-
-                if (strategy.PreCombatFormShift && state.FormShiftLeft < 2 && state.Unlocked(AID.FormShift))
+                if (
+                    strategy.AutoFormShift == MNKConfig.FormShiftBehavior.OutOfCombat
+                    && state.FormShiftLeft < 3
+                    && state.Unlocked(AID.FormShift)
+                )
                     return AID.FormShift;
 
                 if (strategy.CombatTimer > -100)
+                {
+                    // form shift on countdown. TODO: ignore Never here? don't think there's ever any reason not to use it on countdown
+                    if (
+                        strategy.AutoFormShift != MNKConfig.FormShiftBehavior.Never
+                        && state.FormShiftLeft + strategy.CombatTimer < 3
+                        && state.Unlocked(AID.FormShift)
+                    )
+                        return AID.FormShift;
+
                     return AID.None;
+                }
             }
 
             if (!HaveTarget(state, strategy))
             {
                 if (state.Chakra < 5 && state.Unlocked(AID.Meditation))
                     return AID.Meditation;
+
+                if (strategy.AutoFormShift == MNKConfig.FormShiftBehavior.NoTargets && state.CanFormShift)
+                    return AID.FormShift;
 
                 return AID.None;
             }
@@ -265,7 +282,7 @@ namespace BossMod.MNK
             if (strategy.UseSTQOpener && state.LostExcellenceLeft > 0 && state.FoPLeft == 0)
                 return AID.SixSidedStar;
 
-            if (state.BestBlitz != AID.MasterfulBlitz)
+            if (state.BestBlitz != AID.MasterfulBlitz && strategy.NumBlitzTargets > 0)
                 return state.BestBlitz;
 
             // TODO: calculate optimal DK spam before SSS

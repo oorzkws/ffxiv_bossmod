@@ -58,7 +58,8 @@ namespace BossMod.MNK
             UpdatePlayerState();
             FillCommonStrategy(_strategy, CommonDefinitions.IDPotionStr);
             _strategy.ApplyStrategyOverrides(Autorot.Bossmods.ActiveModule?.PlanExecution?.ActiveStrategyOverrides(Autorot.Bossmods.ActiveModule.StateMachine) ?? new uint[0]);
-            _strategy.NumPointBlankAOETargets = autoAction == AutoActionST ? 0 : NumTargetsHitByPBAOE();
+            _strategy.NumBlitzTargets = NumTargetsHitByPBAOE();
+            _strategy.NumPointBlankAOETargets = autoAction == AutoActionST ? 0 : _strategy.NumBlitzTargets;
             _strategy.NumEnlightenmentTargets = Autorot.PrimaryTarget != null && autoAction != AutoActionST && _state.Unlocked(AID.HowlingFist) ? NumTargetsHitByEnlightenment(Autorot.PrimaryTarget) : 0;
             _strategy.UseAOE = _strategy.NumPointBlankAOETargets >= 3;
             _strategy.UseSTQOpener = autoAction == AutoActionSTQOpener;
@@ -80,6 +81,8 @@ namespace BossMod.MNK
                 SimulateManualActionForAI(ActionID.MakeSpell(AID.SecondWind), Player, Player.InCombat && Player.HP.Cur < Player.HP.Max * 0.5f);
             if (_state.Unlocked(AID.Bloodbath))
                 SimulateManualActionForAI(ActionID.MakeSpell(AID.Bloodbath), Player, Player.InCombat && Player.HP.Cur < Player.HP.Max * 0.8f);
+            if (_state.Unlocked(AID.FormShift))
+                SimulateManualActionForAI(ActionID.MakeSpell(AID.FormShift), Player, !Player.InCombat && _state.FormShiftLeft < 5 && _state.PerfectBalanceLeft == 0);
         }
 
         protected override NextAction CalculateAutomaticGCD()
@@ -171,7 +174,7 @@ namespace BossMod.MNK
 
             SupportedSpell(AID.Thunderclap).TransformTarget = _config.SmartThunderclap ? (act) => Autorot.SecondaryTarget ?? act : null;
 
-            _strategy.PreCombatFormShift = _config.AutoFormShift;
+            _strategy.AutoFormShift = _config.AutoFormShift;
 
             // smart targets
         }
