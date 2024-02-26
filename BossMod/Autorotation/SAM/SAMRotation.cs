@@ -391,6 +391,18 @@ namespace BossMod.SAM
             if (!state.TargetingEnemy)
                 return default;
 
+            // if (
+            //     (state.CD(CDGroup.Ikishoten) < 10 || state.CD(CDGroup.Ikishoten) > 110)
+            //     && state.CanWeave(state.DutyActionCD(LostActionID.LostFontofPower), 0.6f, deadline)
+            // )
+            //     return ActionID.MakeSpell(LostActionID.LostFontofPower);
+
+            // if (
+            //     state.FoPLeft > 0
+            //     && state.CanWeave(state.DutyActionCD(LostActionID.BannerHonoredSacrifice), 0.6f, deadline)
+            // )
+            //     return ActionID.MakeSpell(LostActionID.BannerHonoredSacrifice);
+
             if (state.MeikyoLeft == 0 && state.LastTsubame < state.GCDTime * 3)
                 return ActionID.MakeSpell(AID.MeikyoShisui);
 
