@@ -83,7 +83,7 @@ namespace BossMod.SGE
             if (strategy.NumDyskrasiaTargets > 1 && state.Unlocked(state.BestDyskrasia))
                 return state.BestDyskrasia;
 
-            if (!canCast && state.Sting > 0 && strategy.NumToxikonTargets > 0)
+            if (!canCast && state.Unlocked(AID.Toxikon) && state.Sting > 0 && strategy.NumToxikonTargets > 0)
                 return state.BestToxikon;
 
             if (strategy.NumPneumaTargets >= 3 && state.Unlocked(AID.Pneuma) && state.CD(CDGroup.Pneuma) <= state.GCD)
