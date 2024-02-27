@@ -19,6 +19,8 @@ namespace BossMod.MCH
             _state = new(autorot.Cooldowns);
             _strategy = new();
 
+            SupportedSpell(AID.HotShot).TransformAction = () => ActionID.MakeSpell(_state.BestHotShot);
+
             _config.Modified += OnConfigModified;
             OnConfigModified(null, EventArgs.Empty);
         }
@@ -48,7 +50,37 @@ namespace BossMod.MCH
             return MakeResult(ActionID.MakeSpell(Rotation.GetNextBestGCD(_state, _strategy)), Autorot.PrimaryTarget);
         }
 
-        protected override void QueueAIActions() { }
+        protected override void QueueAIActions() {
+
+            if (_state.Unlocked(AID.HeadGraze))
+            {
+                var interruptibleEnemy = Autorot.Hints.PotentialTargets.Find(
+                    e =>
+                        e.ShouldBeInterrupted
+                        && (e.Actor.CastInfo?.Interruptible ?? false)
+                        && e.Actor.Position.InCircle(Player.Position, 25 + e.Actor.HitboxRadius + Player.HitboxRadius)
+                );
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.HeadGraze),
+                    interruptibleEnemy?.Actor,
+                    interruptibleEnemy != null
+                );
+            }
+            if (_state.Unlocked(AID.Peloton))
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.Peloton),
+                    Player,
+                    !Player.InCombat && _state.PelotonLeft < 3 && _strategy.ForceMovementIn == 0
+                );
+            if (_state.Unlocked(AID.SecondWind))
+            {
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.SecondWind),
+                    Player,
+                    Player.InCombat && Player.HP.Cur < Player.HP.Max * 0.5f
+                );
+            }
+        }
 
         public override void Dispose()
         {
@@ -68,7 +100,7 @@ namespace BossMod.MCH
             _strategy.NumAOETargets =
                 autoAction == AutoActionST || Autorot.PrimaryTarget == null ? 0 : NumConeTargets(Autorot.PrimaryTarget, 12);
             _strategy.NumFlamethrowerTargets =
-                autoAction == AutoActionST || Autorot.PrimaryTarget == null ? 0 : NumConeTargets(Autorot.PrimaryTarget, 8);
+                autoAction == AutoActionST ? 0 : NumFlameTargets();
             _strategy.NumChainsawTargets = Autorot.PrimaryTarget == null ? 0 : NumChainsawTargets(Autorot.PrimaryTarget);
             _strategy.NumRicochetTargets =
                 Autorot.PrimaryTarget == null
@@ -78,6 +110,8 @@ namespace BossMod.MCH
 
         private int NumChainsawTargets(Actor target) =>
             Autorot.Hints.NumPriorityTargetsInAOERect(Player.Position, (target.Position - Player.Position).Normalized(), 25, 2);
+
+        private int NumFlameTargets() => Autorot.Hints.NumPriorityTargetsInAOECone(Player.Position, 8, Player.Rotation.ToDirection(), 45.Degrees());
 
         private int NumConeTargets(Actor target, float range) =>
             Autorot.Hints.NumPriorityTargetsInAOECone(Player.Position, range, (target.Position - Player.Position).Normalized(), 45.Degrees());
@@ -106,6 +140,12 @@ namespace BossMod.MCH
 
             _state.ReassembleLeft = StatusDetails(Player, SID.Reassembled, Player.InstanceID).Left;
             _state.WildfireLeft = StatusDetails(Player, SID.WildfireActive, Player.InstanceID).Left;
+
+            var pelo = Player.FindStatus((uint)SID.Peloton);
+            if (pelo != null)
+                _state.PelotonLeft = StatusDuration(pelo.Value.ExpireAt);
+            else
+                _state.PelotonLeft = 0;
         }
 
         private void OnConfigModified(object? sender, EventArgs args)

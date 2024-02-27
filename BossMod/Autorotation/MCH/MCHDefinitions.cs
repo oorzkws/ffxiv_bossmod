@@ -110,6 +110,7 @@ namespace BossMod.MCH
         Reassembled = 851, // applied by Reassemble to self
         Heavy = 14, // applied by Leg Graze to target
         Bind = 13, // applied by Foot Graze to target
+        Peloton = 1199, // applied by Peloton to self
     }
 
     public static class Definitions

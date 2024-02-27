@@ -2,24 +2,23 @@ namespace BossMod.MCH
 {
     public static class Rotation
     {
-        public class State : CommonRotation.PlayerState
+        public class State(float[] cooldowns) : CommonRotation.PlayerState(cooldowns)
         {
             public int Heat; // 100 max
             public int Battery; // 100 max
             public float OverheatLeft; // 10s max
             public float ReassembleLeft; // 5s max
             public float WildfireLeft; // 10s max
+            public float PelotonLeft;
             public bool IsOverheated;
             public bool HasMinion;
-
-            public State(float[] cooldowns)
-                : base(cooldowns) { }
 
             public AID ComboLastMove => ComboTimeLeft > GCD ? (AID)ComboLastAction : AID.None;
 
             public AID BestSplitShot => Unlocked(AID.HeatedSplitShot) ? AID.HeatedSplitShot : AID.SplitShot;
             public AID BestSlugShot => Unlocked(AID.HeatedSlugShot) ? AID.HeatedSlugShot : AID.SlugShot;
             public AID BestCleanShot => Unlocked(AID.HeatedCleanShot) ? AID.HeatedCleanShot : AID.CleanShot;
+            public AID BestHotShot => Unlocked(AID.AirAnchor) ? AID.AirAnchor : AID.HotShot;
 
             public bool Unlocked(AID aid) => Definitions.Unlocked(aid, Level, UnlockProgress);
 
@@ -52,16 +51,17 @@ namespace BossMod.MCH
                     return AID.HeatBlast;
             }
 
-            var canHotShot = state.Unlocked(AID.HotShot) && state.CD(CDGroup.HotShot) <= state.GCD;
+            var canHotShot =
+                !state.Unlocked(AID.AirAnchor) && state.Unlocked(AID.HotShot) && state.CD(CDGroup.HotShot) <= state.GCD;
+
+            if (ShouldUseAirAnchor(state, strategy))
+                return AID.AirAnchor;
+
+            if (ShouldUseChainsaw(state, strategy))
+                return AID.ChainSaw;
 
             if (state.ReassembleLeft > state.GCD)
             {
-                if (state.Unlocked(AID.AirAnchor) && state.CD(CDGroup.AirAnchor) <= state.GCD)
-                    return AID.AirAnchor;
-
-                if (state.Unlocked(AID.ChainSaw) && state.CD(CDGroup.ChainSaw) <= state.GCD)
-                    return AID.ChainSaw;
-
                 if (strategy.NumAOETargets > 3)
                     return AID.Scattergun;
 
@@ -134,11 +134,8 @@ namespace BossMod.MCH
                 )
                     return ActionID.MakeSpell(AID.Wildfire);
 
-                if (
-                    state.Battery >= 50
-                    && !state.HasMinion
-                    && state.CanWeave(CDGroup.RookAutoturret, 0.6f, deadline)
-                ) {
+                if (state.Battery >= 50 && !state.HasMinion && state.CanWeave(CDGroup.RookAutoturret, 0.6f, deadline))
+                {
                     if (state.CD(CDGroup.Wildfire) > 0 && state.Unlocked(AID.AutomatonQueen))
                         return ActionID.MakeSpell(AID.AutomatonQueen);
 
@@ -154,7 +151,8 @@ namespace BossMod.MCH
                 var canRcd = state.Unlocked(AID.Ricochet) && state.CanWeave(rcd, 0.6f, deadline);
                 var canGrcd = state.Unlocked(AID.GaussRound) && state.CanWeave(grcd, 0.6f, deadline);
 
-                if (state.IsOverheated) {
+                if (state.IsOverheated)
+                {
                     if (canRcd && canGrcd)
                         return ActionID.MakeSpell(rcd > grcd ? AID.GaussRound : AID.Ricochet);
                     else if (canRcd)
@@ -169,22 +167,22 @@ namespace BossMod.MCH
 
         private static bool ShouldUseReassemble(State state, Strategy strategy)
         {
-            if (state.ReassembleLeft > 0 || !state.Unlocked(AID.Reassemble) || state.RangeToTarget > 25)
+            if (state.ReassembleLeft > 0 || !state.Unlocked(AID.Reassemble) || state.RangeToTarget > 25 || state.OverheatLeft > 0)
                 return false;
 
             // scattergun priority
             if (strategy.NumAOETargets > 3 && state.Unlocked(AID.SpreadShot))
                 return true;
 
-            var atComboEnd = state.ComboLastMove == AID.CleanShot;
+            var waitOpener = strategy.CombatTimer > 10 || state.ComboLastMove == AID.CleanShot;
 
             return state.Level switch
             {
                 < 26 => state.CD(CDGroup.HotShot) <= state.GCD,
                 < 58 => state.ComboLastMove == AID.SlugShot,
-                < 76 => atComboEnd && state.CD(CDGroup.Drill) <= state.GCD,
-                < 90 => atComboEnd && state.CD(CDGroup.AirAnchor) <= state.GCD,
-                _ => atComboEnd && (state.CD(CDGroup.ChainSaw) <= state.GCD || state.CD(CDGroup.AirAnchor) <= state.GCD)
+                < 76 => waitOpener && state.CD(CDGroup.Drill) <= state.GCD,
+                < 90 => waitOpener && state.CD(CDGroup.AirAnchor) <= state.GCD,
+                _ => waitOpener && (state.CD(CDGroup.ChainSaw) <= state.GCD || state.CD(CDGroup.AirAnchor) <= state.GCD)
             };
         }
 
@@ -193,12 +191,45 @@ namespace BossMod.MCH
             if (state.Heat < 50 || state.IsOverheated)
                 return false;
 
-            var waitForWildfire = state.Unlocked(AID.Wildfire) && state.CD(CDGroup.Wildfire) <= state.GCD;
-            var waitForAA = state.Unlocked(AID.AirAnchor) && state.CD(CDGroup.AirAnchor) <= state.GCD;
-            var waitForCS = state.Unlocked(AID.ChainSaw) && state.CD(CDGroup.ChainSaw) <= state.GCD;
+            // if (state.Heat == 100)
+            //     return true;
 
-            if (waitForWildfire || waitForAA || waitForCS)
+            var waitForWildfire = state.Unlocked(AID.Wildfire) && state.CD(CDGroup.Wildfire) <= state.GCD;
+            var waitForAnchor = state.Unlocked(AID.AirAnchor) && state.CD(CDGroup.AirAnchor) <= state.GCD;
+            var waitForSaw = state.Unlocked(AID.ChainSaw) && state.CD(CDGroup.ChainSaw) <= state.GCD;
+
+            if (waitForWildfire || waitForAnchor || waitForSaw)
                 return false;
+
+            return true;
+        }
+
+        private static bool ShouldUseAirAnchor(State state, Strategy strategy)
+        {
+            if (
+                !state.Unlocked(AID.AirAnchor)
+                || state.CD(CDGroup.AirAnchor) > state.GCD
+                || (state.CD(CDGroup.Reassemble) < 55 && state.ReassembleLeft == 0)
+            )
+                return false;
+
+            if (strategy.CombatTimer < 10)
+                return state.ReassembleLeft > state.GCD;
+
+            return true;
+        }
+
+        private static bool ShouldUseChainsaw(State state, Strategy strategy)
+        {
+            if (
+                !state.Unlocked(AID.ChainSaw)
+                || state.CD(CDGroup.ChainSaw) > state.GCD
+                || (state.CD(CDGroup.Reassemble) < 55 && state.ReassembleLeft == 0)
+            )
+                return false;
+
+            if (strategy.CombatTimer < 10)
+                return state.ReassembleLeft > state.GCD;
 
             return true;
         }
