@@ -102,10 +102,10 @@ namespace BossMod.MNK
                 _strategy.UseSTQOpener
                 && _state.LostExcellenceLeft > 0
                 && _state.FoPLeft == 0
-                && _state.ExcOverslot >= 0
+                && _state.HasDutyAction(LostActionID.LostExcellence)
                 && _state.CanWeave(0f, 2.1f, deadline)
             )
-                return LostActionSwap(LostActionID.BannerHonoredSacrifice, (uint)_state.ExcOverslot);
+                return LostActionSwap(LostActionID.BannerHonoredSacrifice, (uint)_state.DutyActionSlot(LostActionID.LostExcellence));
 
             ActionID res = new();
             if (_state.CanWeave(deadline - _state.OGCDSlotLength)) // first ogcd slot

@@ -63,7 +63,6 @@ namespace BossMod.MNK
                     return AID.CelestialRevolution;
                 }
             }
-            public int ExcOverslot => DutyAction1 == (uint)LostActionID.LostExcellence ? 0 : DutyAction2 == (uint)LostActionID.LostExcellence ? 1 : -1;
 
             public State(float[] cooldowns) : base(cooldowns) { }
 
