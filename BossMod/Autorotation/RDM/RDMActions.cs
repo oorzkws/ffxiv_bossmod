@@ -4,7 +4,7 @@ using Dalamud.Game.ClientState.JobGauge.Types;
 
 namespace BossMod.RDM
 {
-    class Actions : CommonActions
+    class Actions : HealerActions
     {
         public const int AutoActionST = AutoActionFirstCustom + 0;
         public const int AutoActionAOE = AutoActionFirstCustom + 1;
@@ -130,12 +130,7 @@ namespace BossMod.RDM
 
         protected override void QueueAIActions()
         {
-            if (_state.Unlocked(AID.CorpsACorps))
-                SimulateManualActionForAI(
-                    ActionID.MakeSpell(AID.CorpsACorps),
-                    Autorot.PrimaryTarget,
-                    _state.RangeToTarget > 3 && _state.MinMana >= 50
-                );
+            // ai self heal
             if (_state.Unlocked(AID.Vercure))
                 SimulateManualActionForAI(
                     ActionID.MakeSpell(AID.Vercure),
