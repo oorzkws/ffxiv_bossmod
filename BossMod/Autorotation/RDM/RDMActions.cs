@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Dalamud.Game.ClientState.JobGauge.Types;
 
 namespace BossMod.RDM
@@ -127,7 +128,23 @@ namespace BossMod.RDM
             return new(tar, range);
         }
 
-        protected override void QueueAIActions() { }
+        protected override void QueueAIActions()
+        {
+            if (_state.Unlocked(AID.CorpsACorps))
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.CorpsACorps),
+                    Autorot.PrimaryTarget,
+                    _state.RangeToTarget > 3 && _state.MinMana >= 50
+                );
+            if (_state.Unlocked(AID.Vercure))
+                SimulateManualActionForAI(
+                    ActionID.MakeSpell(AID.Vercure),
+                    Autorot.PrimaryTarget,
+                    Player.InCombat
+                        && Player.HP.Cur * 2 <= Player.HP.Max
+                        && Autorot.WorldState.Party.WithoutSlot().All(x => x.Role != Role.Healer)
+                );
+        }
 
         private void OnConfigModified(object? sender, EventArgs args)
         {
