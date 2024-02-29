@@ -301,28 +301,30 @@ namespace BossMod.AST
             return prio;
         }
 
-        private static int MeleePriority(Class c) => c switch {
+        private static int MeleePriority(Class c) =>
+            c switch
+            {
+                Class.SAM => 100,
+                Class.NIN or Class.ROG => 99,
+                Class.MNK or Class.PGL => 90,
+                Class.RPR => 89,
+                Class.DRG or Class.LNC => 88,
+                Class.DRK => 60,
+                Class.PLD => 50,
+                _ => 0
+            };
 
-            Class.SAM => 100,
-            Class.NIN => 99,
-            Class.MNK => 90,
-            Class.RPR => 89,
-            Class.DRG => 88,
-            Class.DRK => 60,
-            Class.PLD => 50,
-            _ => 0
-        };
-
-        private static int RangedPriority(Class c) => c switch {
-
-                Class.BLM => 100,
-                Class.SMN => 99,
+        private static int RangedPriority(Class c) =>
+            c switch
+            {
+                Class.BLM or Class.THM => 100,
+                Class.SMN or Class.ACN => 99,
                 Class.RDM => 98,
                 Class.MCH => 89,
-                Class.BRD => 88,
+                Class.BRD or Class.ARC => 88,
                 Class.DNC => 87,
                 _ => 0
-        };
+            };
 
         private static bool HasCardBuff(Actor act) =>
             act.Statuses.Any(
