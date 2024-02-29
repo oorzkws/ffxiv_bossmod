@@ -251,7 +251,7 @@ namespace BossMod.MNK
                 )
                     return AID.FormShift;
 
-                if (strategy.CombatTimer > -100)
+                if (strategy.CombatTimer > -25)
                 {
                     // form shift on countdown. TODO: ignore Never here? don't think there's ever any reason not to use it on countdown
                     if (
@@ -270,7 +270,7 @@ namespace BossMod.MNK
                 if (state.Chakra < 5 && state.Unlocked(AID.Meditation))
                     return AID.Meditation;
 
-                if (strategy.AutoFormShift == MNKConfig.FormShiftBehavior.NoTargets && state.CanFormShift)
+                if (strategy.AutoFormShift == MNKConfig.FormShiftBehavior.NoTargets && state.CanFormShift && state.FormShiftLeft < 3)
                     return AID.FormShift;
 
                 return AID.None;
