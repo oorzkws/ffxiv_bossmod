@@ -405,7 +405,7 @@ namespace BossMod.BLM
 
             if (CanFlareStar(state, strategy) && state.TargetFlareStarLeft < 5 && state.TargetThunderLeft > 5)
             {
-                if (state.ElementalLevel == -3)
+                if (state.ElementalLevel == -3 && state.ElementalLeft > 6)
                 {
                     if (state.FontOfMagicLeft > state.TimeToManaTick)
                     {
