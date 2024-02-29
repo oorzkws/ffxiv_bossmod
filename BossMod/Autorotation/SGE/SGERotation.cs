@@ -89,13 +89,13 @@ namespace BossMod.SGE
             if (strategy.NumPneumaTargets >= 3 && state.Unlocked(AID.Pneuma) && state.CD(CDGroup.Pneuma) <= state.GCD)
                 return AID.Pneuma;
 
-            if (!state.TargetingEnemy)
+            if (!state.TargetingEnemy && state.Unlocked(AID.Eukrasia))
                 return state.Eukrasia ? AID.None : AID.Eukrasia;
 
             if (strategy.CombatTimer > -100 && strategy.CombatTimer < 0)
                 return AID.None;
 
-            if (RefreshDOT(state, state.TargetDotLeft))
+            if (RefreshDOT(state, state.TargetDotLeft) && state.Unlocked(AID.Eukrasia))
                 return state.Eukrasia ? state.BestDosis : AID.Eukrasia;
 
             if (
