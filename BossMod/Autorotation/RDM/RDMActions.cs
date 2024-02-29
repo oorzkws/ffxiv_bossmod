@@ -152,6 +152,8 @@ namespace BossMod.RDM
                 _config.FullRotation ? AutoActionST : AutoActionNone;
             SupportedSpell(AID.Scatter).PlaceholderForAuto = SupportedSpell(AID.Impact).PlaceholderForAuto =
                 _config.FullRotation ? AutoActionAOE : AutoActionNone;
+
+            SupportedSpell(AID.Vercure).TransformTarget = SmartTargetFriendlyOrSelf;
         }
 
         private int NumCircleTargets(Actor? primary, float radius) =>
