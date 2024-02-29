@@ -40,6 +40,11 @@ namespace BossMod
                 var id = (uint)(object)aid;
                 return id == DutyAction1 ? Cooldowns[CommonDefinitions.DutyActionCDGroup] : id == DutyAction2 ? Cooldowns[CommonDefinitions.DutyAction2CDGroup] : float.MaxValue;
             }
+            public int DutyActionSlot<AID>(AID aid) where AID : Enum {
+                var id = (uint)(object)aid;
+                return id == DutyAction1 ? 0 : id == DutyAction2 ? 1 : -1;
+            }
+            public bool HasDutyAction<AID>(AID aid) where AID : Enum => DutyActionSlot(aid) >= 0;
 
             // check whether weaving typical ogcd off cooldown would end its animation lock by the specified deadline
             public float OGCDSlotLength => 0.6f + AnimationLockDelay; // most actions have 0.6 anim lock delay, which allows double-weaving oGCDs between GCDs

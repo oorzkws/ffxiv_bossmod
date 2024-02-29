@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Dalamud.Game.ClientState.JobGauge.Types;
 
 namespace BossMod.BLM
@@ -65,6 +66,7 @@ namespace BossMod.BLM
                 && autoAction != AutoActionST
                 && _state.Unlocked(AID.Blizzard2)
                 && NumTargetsHitByAOE(Autorot.PrimaryTarget) >= 3;
+            _strategy.NumFlareStarTargets = Autorot.Hints.NumPriorityTargetsInAOECircle(Player.Position, 10);
 
             _strategy.ApplyStrategyOverrides(
                 Autorot
@@ -189,6 +191,18 @@ namespace BossMod.BLM
             _state.FontOfMagicLeft = StatusDetails(Player, SID.LostFontOfMagic, Player.InstanceID).Left;
             _state.MagicBurstLeft = StatusDetails(Player, SID.MagicBurst, Player.InstanceID).Left;
             _state.LucidDreamingLeft = StatusDetails(Player, SID.LucidDreaming, Player.InstanceID).Left;
+
+            var lfs = Autorot
+                .Hints.PriorityTargets.Where(x => x.Actor.Position.InCircle(Player.Position, 10 + x.Actor.HitboxRadius))
+                .Select(LFSLeft);
+
+            _state.TargetFlareStarLeft = lfs.Any() ? lfs.Min() : 0;
+        }
+
+        private float LFSLeft(AIHints.Enemy a)
+        {
+            var s = a.Actor.FindStatus(2440);
+            return s == null ? 0 : StatusDuration(s.Value.ExpireAt);
         }
 
         private void OnConfigModified(object? sender, EventArgs args)

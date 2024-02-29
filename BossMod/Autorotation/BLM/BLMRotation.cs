@@ -32,7 +32,11 @@ namespace BossMod.BLM
             public float NextPolyglot => EnochianTimer;
             public int MaxHearts => Unlocked(TraitID.EnhancedFreeze) ? 3 : 0;
 
-            // this is NOT accurate, mana drain ticks can be offset arbitrarily from regen ticks. however, actually calculating that is a huge pita
+            // lowest remaining Flare Star duration on any enemy in range, plus primary target whether they are within 10y or not
+            // max is ostensibly 60s, but will be set to float.MaxValue if there are no enemies in range in order to make logic easier
+            public float TargetFlareStarLeft;
+
+            // this is an approximation. mana drain ticks can and will be offset arbitrarily from regen ticks. however, actually calculating that is a huge pita
             public float TimeToManaHalfTick => TimeToManaTick > 1.5 ? TimeToManaTick - 1.5f : TimeToManaTick + 1.5f;
 
             public float InstantCastLeft => MathF.Max(SwiftcastLeft, TriplecastLeft);
@@ -176,6 +180,7 @@ namespace BossMod.BLM
             public OffensiveAbilityUse TriplecastStrategy;
             public OffensiveAbilityUse LeylinesStrategy;
             public bool UseAOERotation;
+            public int NumFlareStarTargets;
             public bool AutoRefresh;
             public bool UseLFS;
 
@@ -398,6 +403,33 @@ namespace BossMod.BLM
                     return AID.Blizzard4;
             }
 
+            if (CanFlareStar(state, strategy) && state.TargetFlareStarLeft < 5 && state.TargetThunderLeft > 5)
+            {
+                if (state.ElementalLevel == -3)
+                {
+                    if (state.FontOfMagicLeft > state.TimeToManaTick)
+                    {
+                        if (state.CurMP >= 9000 && state.CurMP < 10000)
+                            return (AID)LostActionID.LostFlareStar;
+                    }
+                    else if (state.DutyActionCD(LostActionID.LostFontofMagic) == 0)
+                    {
+                        if (state.LucidDreamingLeft == 0 && state.CD(CDGroup.LucidDreaming) == 0)
+                            return AID.LucidDreaming;
+
+                        return (AID)LostActionID.LostFontofMagic;
+                    }
+                    else if (state.CurMP >= 9000)
+                        return (AID)LostActionID.LostFlareStar;
+                    else if (state.Polyglot > 0)
+                        return AID.Xenoglossy;
+                }
+                else
+                    return AID.Blizzard3;
+
+                return AID.None;
+            }
+
             // swap if near max mp
             if (strategy.UseAOERotation)
             {
@@ -531,5 +563,12 @@ namespace BossMod.BLM
 
         private static bool CanPoly(State state, Strategy strategy, int minStacks = 2) =>
             state.Polyglot >= minStacks && CanCast(state, strategy, state.BestPolySpell, 0);
+
+        private static bool CanFlareStar(State state, Strategy strategy)
+        {
+            return state.HasDutyAction(LostActionID.LostFlareStar)
+                && strategy.NumFlareStarTargets > 0
+                && strategy.TriplecastStrategy != CommonRotation.Strategy.OffensiveAbilityUse.Delay;
+        }
     }
 }
