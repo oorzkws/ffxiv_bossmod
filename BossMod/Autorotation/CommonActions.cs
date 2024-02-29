@@ -512,17 +512,6 @@ namespace BossMod
             return (bestTarget, bestPrio);
         }
 
-        protected unsafe NextAction StatusOff<SID>(SID status) where SID : Enum
-        {
-            var statusId = (uint)(object)status;
-            var p = Service.ObjectTable[Player.SpawnIndex] as Dalamud.Game.ClientState.Objects.Types.BattleChara;
-            if (p == null) return new();
-            var s = (FFXIVGame.StatusManager*)p.StatusList.Address;
-            var i = s->GetStatusIndex(statusId);
-            if (i < 0) return new();
-            return NextAction.ExecuteCommand(CommandID.StatusOff, statusId, 0, s->GetSourceId(i), 0);
-        }
-
         protected NextAction LostActionSwap(LostActionID actionID, uint slot) {
             var ix = Service.LostActionsHolster.IndexOf((uint)actionID);
             if (ix < 0) {

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.JobGauge.Types;
@@ -58,9 +59,6 @@ namespace BossMod.NIN
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
         {
-            if (_strategy.CombatTimer < 0 && _strategy.AutoUnhide && _state.Hidden)
-                return StatusOff(SID.Hidden);
-
             if (AutoAction < AutoActionAIFight)
                 return new();
 
@@ -71,6 +69,13 @@ namespace BossMod.NIN
                 res = Rotation.GetNextBestOGCD(_state, _strategy, deadline);
 
             return MakeResult(res, Autorot.PrimaryTarget);
+        }
+
+        public override void FillStatusesToCancel(List<(uint statusId, ulong sourceId)> list)
+        {
+            base.FillStatusesToCancel(list);
+            if (_strategy.CombatTimer < 0 && _strategy.AutoUnhide && _state.Hidden)
+                list.Add(((uint)SID.Hidden, Player.InstanceID));
         }
 
         protected override void UpdateInternalState(int autoAction)
