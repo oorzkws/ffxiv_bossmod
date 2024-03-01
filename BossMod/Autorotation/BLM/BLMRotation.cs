@@ -425,7 +425,7 @@ namespace BossMod.BLM
                         return AID.Xenoglossy;
                 }
                 else
-                    return AID.Blizzard3;
+                    return strategy.UseAOERotation ? AID.Blizzard2 : AID.Blizzard3;
 
                 return AID.None;
             }
@@ -568,6 +568,7 @@ namespace BossMod.BLM
         {
             return state.HasDutyAction(LostActionID.LostFlareStar)
                 && strategy.NumFlareStarTargets > 0
+                && state.MagicBurstLeft == 0
                 && strategy.TriplecastStrategy != CommonRotation.Strategy.OffensiveAbilityUse.Delay;
         }
     }
