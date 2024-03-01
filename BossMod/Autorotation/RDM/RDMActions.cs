@@ -119,7 +119,9 @@ namespace BossMod.RDM
                 tar = FindBetterTargetBy(initial, 8, (e) => NumMoulinetTargets(e.Actor)).Target;
                 range = 8;
             }
-            else if (_state.ManaStacks == 3 || _state.ScorchReady)
+            else if (_state.MinMana >= 50 && _strategy.NumMoulinetTargets < 3)
+                range = 3;
+            else
             {
                 tar = FindBetterTargetBy(initial, 25, (e) => NumCircleTargets(e.Actor, 5)).Target;
                 range = tar.StayAtLongRange ? 25 : 15;
@@ -134,7 +136,7 @@ namespace BossMod.RDM
             if (_state.Unlocked(AID.Vercure))
                 SimulateManualActionForAI(
                     ActionID.MakeSpell(AID.Vercure),
-                    Autorot.PrimaryTarget,
+                    Player,
                     Player.InCombat
                         && Player.HP.Cur * 2 <= Player.HP.Max
                         && Autorot.WorldState.Party.WithoutSlot().All(x => x.Role != Role.Healer)
