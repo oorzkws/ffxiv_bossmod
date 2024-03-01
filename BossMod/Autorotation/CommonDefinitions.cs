@@ -52,7 +52,7 @@ namespace BossMod
         public static int SprintCDGroup = 55;
         public static int GCDGroup = 57;
         public static int PotionCDGroup = 58;
-        public static int DutyActionCDGroup = 80;
+        public static int DutyAction1CDGroup = 80;
         public static int DutyAction2CDGroup = 81;
 
         public static Dictionary<ActionID, ActionDefinition> CommonActionData(ActionID statPotion)

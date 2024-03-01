@@ -76,7 +76,7 @@ namespace BossMod
         {
             // all duty actions are group 80 in sheets, but duty action 2's cd is tracked in group 81 when it is available
             if (
-                def.CooldownGroup == CommonDefinitions.DutyActionCDGroup
+                def.CooldownGroup == CommonDefinitions.DutyAction1CDGroup
                 // starts at 0
                 && ActionManager.GetDutyActionId(1) == action.ID
             )

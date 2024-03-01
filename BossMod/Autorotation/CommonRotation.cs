@@ -38,7 +38,7 @@ namespace BossMod
             public float CD<CDGroup>(CDGroup group) where CDGroup : Enum => Cooldowns[(int)(object)group];
             public float DutyActionCD<AID>(AID aid) where AID : Enum {
                 var id = (uint)(object)aid;
-                return id == DutyAction1 ? Cooldowns[CommonDefinitions.DutyActionCDGroup] : id == DutyAction2 ? Cooldowns[CommonDefinitions.DutyAction2CDGroup] : float.MaxValue;
+                return id == DutyAction1 ? Cooldowns[CommonDefinitions.DutyAction1CDGroup] : id == DutyAction2 ? Cooldowns[CommonDefinitions.DutyAction2CDGroup] : float.MaxValue;
             }
             public int DutyActionSlot<AID>(AID aid) where AID : Enum {
                 var id = (uint)(object)aid;
