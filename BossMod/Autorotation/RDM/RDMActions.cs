@@ -119,29 +119,18 @@ namespace BossMod.RDM
                 tar = FindBetterTargetBy(initial, 8, (e) => NumMoulinetTargets(e.Actor)).Target;
                 range = 8;
             }
-            else if (_state.MinMana >= 50 && _strategy.NumMoulinetTargets < 3)
+            else if (_state.InMeleeCombo || (_state.MinMana >= 50 && _strategy.NumMoulinetTargets < 3))
                 range = 3;
             else
             {
-                tar = FindBetterTargetBy(initial, 25, (e) => NumCircleTargets(e.Actor, 5)).Target;
+                tar = FindBetterTargetBy(initial, 25, (e) => NumCircleTargets(e.Actor, 5) * 1000000 + (int)e.Actor.HP.Cur).Target;
                 range = tar.StayAtLongRange ? 25 : 15;
             }
 
             return new(tar, range);
         }
 
-        protected override void QueueAIActions()
-        {
-            // ai self heal
-            if (_state.Unlocked(AID.Vercure))
-                SimulateManualActionForAI(
-                    ActionID.MakeSpell(AID.Vercure),
-                    Player,
-                    Player.InCombat
-                        && Player.HP.Cur * 2 <= Player.HP.Max
-                        && Autorot.WorldState.Party.WithoutSlot().All(x => x.Role != Role.Healer)
-                );
-        }
+        protected override void QueueAIActions() { }
 
         private void OnConfigModified(object? sender, EventArgs args)
         {
@@ -151,6 +140,22 @@ namespace BossMod.RDM
                 _config.FullRotation ? AutoActionAOE : AutoActionNone;
 
             SupportedSpell(AID.Vercure).TransformTarget = SmartTargetFriendlyOrSelf;
+            SupportedSpell(AID.Verraise).TransformAction = _config.SmartRaise ? SmartVerraise : null;
+            SupportedSpell(AID.Verraise).TransformTarget = _config.SmartRaise ? SmartTargetDead : null;
+        }
+
+        private ActionID SmartVerraise()
+        {
+            if (_state.DualcastLeft > 0 || _state.SwiftcastLeft > 0)
+                return ActionID.MakeSpell(AID.Verraise);
+
+            if (_state.CD(CDGroup.Swiftcast) == 0)
+                return ActionID.MakeSpell(AID.Swiftcast);
+
+            if (_state.TargetingEnemy && _state.RangeToTarget <= 25)
+                return ActionID.MakeSpell(_state.BestJolt);
+
+            return ActionID.MakeSpell(AID.Vercure);
         }
 
         private int NumCircleTargets(Actor? primary, float radius) =>

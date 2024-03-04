@@ -62,6 +62,8 @@ namespace BossMod.RDM
 
             public bool CanMelee => RangeToTarget <= 3;
 
+            public bool InMeleeCombo => ComboLastMove == AID.Zwerchhau && MinMana >= 15 || ComboLastMove == AID.Riposte && MinMana >= 30;
+
             public bool Unlocked(AID aid) => Definitions.Unlocked(aid, Level, UnlockProgress);
 
             public bool Unlocked(TraitID tid) => Definitions.Unlocked(tid, Level, UnlockProgress);
