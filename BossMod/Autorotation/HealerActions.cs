@@ -207,7 +207,11 @@ namespace BossMod
                                     ? 8
                                     : 7
                 );
+        }
 
+        protected Actor? SmartTargetDead(Actor? primaryTarget)
+        {
+            return SmartTargetFriendly(primaryTarget) ?? FindRaiseTarget();
         }
 
         protected static bool IsHOT(uint sid)
