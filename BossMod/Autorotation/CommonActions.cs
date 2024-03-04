@@ -398,8 +398,8 @@ namespace BossMod
             s.AttackGCDTime = FFXIVGame.ActionManager.GetAdjustedRecastTime(FFXIVGame.ActionType.Action, 9) / 1000f;
             s.SpellGCDTime = FFXIVGame.ActionManager.GetAdjustedRecastTime(FFXIVGame.ActionType.Action, 119) / 1000f;
 
-            s.DutyAction1 = FFXIVGame.ActionManager.GetDutyActionId(0);
-            s.DutyAction2 = FFXIVGame.ActionManager.GetDutyActionId(1);
+            s.DutyAction1 = GetDutyAction(0);
+            s.DutyAction2 = GetDutyAction(1);
 
             s.RaidBuffsLeft = vuln.Item1 ? vuln.Item2 : 0;
             foreach (var status in Player.Statuses.Where(s => IsDamageBuff(s.ID)))
@@ -407,6 +407,17 @@ namespace BossMod
                 s.RaidBuffsLeft = MathF.Max(s.RaidBuffsLeft, StatusDuration(status.ExpireAt));
             }
             // TODO: also check damage-taken debuffs on target
+        }
+
+        private static CommonRotation.DutyAction GetDutyAction(ushort slot) 
+        {
+            var d = FFXIVGame.ActionManager.GetDutyActionId(slot);
+            var hasCharge = false;
+
+            if (d > 0)
+                hasCharge = ActionManagerEx.Instance!.GetEventActionHasCharge(d);
+
+            return new CommonRotation.DutyAction { ActionID = d, HasCharge = hasCharge };
         }
 
         // fill common strategy properties

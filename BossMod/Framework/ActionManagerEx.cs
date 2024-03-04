@@ -6,6 +6,7 @@ using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
+
 namespace BossMod
 {
     // extensions and utilities for interacting with game's ActionManager singleton
@@ -141,6 +142,9 @@ namespace BossMod
         private delegate bool CancelStatusDelegate(uint statusId, uint sourceId);
         private CancelStatusDelegate _cancelStatusFunc;
 
+        private delegate bool HasChargesDelegate(long actionId, byte resourceType, int actionCost);
+        private HasChargesDelegate _hasChargesFunc;
+
         public ActionManagerEx()
         {
             InputOverride = new();
@@ -184,6 +188,25 @@ namespace BossMod
             var cancelStatusAddress = Service.SigScanner.ScanText("E8 ?? ?? ?? ?? 84 C0 75 2C 48 8B 07");
             _cancelStatusFunc = Marshal.GetDelegateForFunctionPointer<CancelStatusDelegate>(cancelStatusAddress);
             Service.Log($"[AMEx] CancelStatus address = 0x{cancelStatusAddress:X}");
+
+            var hasChargeAddress = Service.SigScanner.ScanText("E8 ?? ?? ?? ?? 84 C0 0F 85 ?? ?? ?? ?? B8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 8B C2");
+            _hasChargesFunc = Marshal.GetDelegateForFunctionPointer<HasChargesDelegate>(hasChargeAddress);
+            Service.Log($"[AMEx] EventActionHasCharges address = 0x{hasChargeAddress:X}");
+        }
+
+        public bool GetEventActionHasCharge(uint actionid)
+        {
+            var row = Service.LuminaRow<Lumina.Excel.GeneratedSheets.Action>(actionid);
+            if (row == null) return false;
+
+            var ty = row.PrimaryCostType;
+            var cost = row.PrimaryCostValue;
+            // if PrimaryCostType is below 20, this is a normal non-duty action, meaning it costs MP or a job-specific resource, or has no resource cost (e.g. weaponskill GCD)
+            // in these cases we assume the action is baseline usable, and the rotation should do its own relevant checks
+            if (ty < 20)
+                return true;
+
+            return _hasChargesFunc(actionid, ty, cost);
         }
 
         public void Dispose()

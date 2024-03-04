@@ -4,6 +4,12 @@ namespace BossMod
 {
     public static class CommonRotation
     {
+        public struct DutyAction
+        {
+            public uint ActionID;
+            public bool HasCharge;
+        }
+
         public static int SpellCDGroup<AID>(AID spell) where AID : Enum
         {
             var cg = Service.LuminaRow<Lumina.Excel.GeneratedSheets.Action>((uint)(object)spell)?.CooldownGroup ?? 0;
@@ -29,8 +35,8 @@ namespace BossMod
             public float AttackGCDTime;
             public float SpellGCDTime;
 
-            public uint DutyAction1;
-            public uint DutyAction2;
+            public DutyAction DutyAction1;
+            public DutyAction DutyAction2;
 
             public float GCD => Cooldowns[CommonDefinitions.GCDGroup]; // 2.5 max (decreased by SkS), 0 if not on gcd
             public float SprintCD => Cooldowns[CommonDefinitions.SprintCDGroup]; // 60.0 max
@@ -38,11 +44,16 @@ namespace BossMod
             public float CD<CDGroup>(CDGroup group) where CDGroup : Enum => Cooldowns[(int)(object)group];
             public float DutyActionCD<AID>(AID aid) where AID : Enum {
                 var id = (uint)(object)aid;
-                return id == DutyAction1 ? Cooldowns[CommonDefinitions.DutyAction1CDGroup] : id == DutyAction2 ? Cooldowns[CommonDefinitions.DutyAction2CDGroup] : float.MaxValue;
+                if (id == DutyAction1.ActionID && DutyAction1.HasCharge)
+                    return Cooldowns[CommonDefinitions.DutyAction1CDGroup];
+                else if (id == DutyAction2.ActionID && DutyAction2.HasCharge)
+                    return Cooldowns[CommonDefinitions.DutyAction2CDGroup];
+                else
+                    return float.MaxValue;
             }
             public int DutyActionSlot<AID>(AID aid) where AID : Enum {
                 var id = (uint)(object)aid;
-                return id == DutyAction1 ? 0 : id == DutyAction2 ? 1 : -1;
+                return id == DutyAction1.ActionID ? 0 : id == DutyAction2.ActionID ? 1 : -1;
             }
             public bool HasDutyAction<AID>(AID aid) where AID : Enum => DutyActionSlot(aid) >= 0;
 
