@@ -20,6 +20,9 @@ namespace BossMod.MCH
             public AID BestCleanShot => Unlocked(AID.HeatedCleanShot) ? AID.HeatedCleanShot : AID.CleanShot;
             public AID BestHotShot => Unlocked(AID.AirAnchor) ? AID.AirAnchor : AID.HotShot;
 
+            public float FullGaussCD => CD(CDGroup.GaussRound) - (Unlocked(TraitID.ChargedActionMastery) ? 0 : 30);
+            public float FullRicochetCD => CD(CDGroup.Ricochet) - (Unlocked(TraitID.ChargedActionMastery) ? 0 : 30);
+
             public bool Unlocked(AID aid) => Definitions.Unlocked(aid, Level, UnlockProgress);
 
             public bool Unlocked(TraitID tid) => Definitions.Unlocked(tid, Level, UnlockProgress);
@@ -60,6 +63,9 @@ namespace BossMod.MCH
             if (ShouldUseChainsaw(state, strategy))
                 return AID.ChainSaw;
 
+            if (ShouldUseDrill(state, strategy))
+                return AID.Drill;
+
             if (state.ReassembleLeft > state.GCD)
             {
                 if (strategy.NumAOETargets > 3)
@@ -74,13 +80,6 @@ namespace BossMod.MCH
 
             if ((!state.Unlocked(AID.Reassemble) || state.ReassembleLeft == 0) && canHotShot)
                 return AID.HotShot;
-
-            if (
-                state.Unlocked(AID.Drill)
-                && state.CD(CDGroup.Drill) <= state.GCD
-                && (state.CD(CDGroup.Ricochet) > 0 || state.CD(CDGroup.GaussRound) > 0)
-            )
-                return AID.Drill;
 
             if (state.Unlocked(AID.Bioblaster) && state.CD(CDGroup.Drill) <= state.GCD && strategy.NumAOETargets > 1)
                 return AID.Bioblaster;
@@ -109,10 +108,10 @@ namespace BossMod.MCH
         public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline)
         {
             // check for full charges
-            if (state.Unlocked(AID.GaussRound) && state.CanWeave(CDGroup.GaussRound, 0.6f, deadline))
+            if (state.Unlocked(AID.GaussRound) && state.CanWeave(state.FullGaussCD, 0.6f, deadline))
                 return ActionID.MakeSpell(AID.GaussRound);
 
-            if (state.Unlocked(AID.Ricochet) && state.CanWeave(CDGroup.Ricochet, 0.6f, deadline))
+            if (state.Unlocked(AID.Ricochet) && state.CanWeave(state.FullRicochetCD, 0.6f, deadline))
                 return ActionID.MakeSpell(AID.Ricochet);
 
             if (state.CD(CDGroup.Drill) > 0 && state.CanWeave(CDGroup.BarrelStabilizer, 0.6f, deadline))
@@ -167,7 +166,12 @@ namespace BossMod.MCH
 
         private static bool ShouldUseReassemble(State state, Strategy strategy)
         {
-            if (state.ReassembleLeft > 0 || !state.Unlocked(AID.Reassemble) || state.RangeToTarget > 25 || state.OverheatLeft > 0)
+            if (
+                state.ReassembleLeft > 0
+                || !state.Unlocked(AID.Reassemble)
+                || state.RangeToTarget > 25
+                || state.OverheatLeft > 0
+            )
                 return false;
 
             // scattergun priority
@@ -180,7 +184,7 @@ namespace BossMod.MCH
             {
                 < 26 => state.CD(CDGroup.HotShot) <= state.GCD,
                 < 58 => state.ComboLastMove == AID.SlugShot,
-                < 76 => waitOpener && state.CD(CDGroup.Drill) <= state.GCD,
+                < 76 => state.CD(CDGroup.Drill) <= state.GCD,
                 < 90 => waitOpener && state.CD(CDGroup.AirAnchor) <= state.GCD,
                 _ => waitOpener && (state.CD(CDGroup.ChainSaw) <= state.GCD || state.CD(CDGroup.AirAnchor) <= state.GCD)
             };
@@ -188,7 +192,7 @@ namespace BossMod.MCH
 
         private static bool ShouldUseHypercharge(State state, Strategy strategy)
         {
-            if (state.Heat < 50 || state.IsOverheated)
+            if (state.Heat < 50 || state.IsOverheated || state.RangeToTarget > 25 || state.ReassembleLeft > 0)
                 return false;
 
             // if (state.Heat == 100)
@@ -232,6 +236,19 @@ namespace BossMod.MCH
                 return state.ReassembleLeft > state.GCD;
 
             return true;
+        }
+
+        private static bool ShouldUseDrill(State state, Strategy strategy)
+        {
+            if (!state.Unlocked(AID.Drill) || state.CD(CDGroup.Drill) > state.GCD)
+                return false;
+
+            // level >= 76: use reassemble on AA and chainsaw
+            if (state.Unlocked(AID.AirAnchor))
+                return state.ReassembleLeft == 0 && (state.FullGaussCD > 0 || state.FullRicochetCD > 0);
+
+            var reassembleCharge = state.CD(CDGroup.Reassemble) - 55;
+            return reassembleCharge > state.AttackGCDTime;
         }
 
         private static bool ShouldUseBurst(State state, Strategy strategy, float deadline) =>
