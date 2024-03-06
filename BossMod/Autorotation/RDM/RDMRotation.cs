@@ -141,7 +141,7 @@ namespace BossMod.RDM
             }
             else
             {
-                if (state.MinMana >= 50 && state.CanMelee)
+                if (state.MinMana >= 50 - (state.ManaStacks * 15) && state.CanMelee)
                     return state.BestRiposte;
             }
 

@@ -87,6 +87,7 @@ namespace BossMod.RDM
         VerfireReady = 1234, // applied by Verthunder III to self
         Sprint = 50, // applied by Sprint to self
         Dualcast = 1249, // applied by any non-instant cast spell to self
+        LostChainspell = 2560,
     }
 
     public enum CDGroup : int

@@ -93,7 +93,10 @@ namespace BossMod.RDM
 
             var gauge = Service.JobGauges.Get<RDMGauge>();
 
-            _state.DualcastLeft = StatusDetails(Player, SID.Dualcast, Player.InstanceID).Left;
+            _state.DualcastLeft = Math.Max(
+                StatusDetails(Player, SID.Dualcast, Player.InstanceID).Left,
+                StatusDetails(Player, SID.LostChainspell, Player.InstanceID).Left
+            );
             _state.SwiftcastLeft = StatusDetails(Player, SID.Swiftcast, Player.InstanceID).Left;
             _state.AccelerationLeft = StatusDetails(Player, SID.Acceleration, Player.InstanceID).Left;
             _state.ManaficationLeft = StatusDetails(Player, SID.Manafication, Player.InstanceID).Left;
@@ -123,7 +126,11 @@ namespace BossMod.RDM
                 range = 3;
             else
             {
-                tar = FindBetterTargetBy(initial, 25, (e) => NumCircleTargets(e.Actor, 5) * 1000000 + (int)e.Actor.HP.Cur).Target;
+                tar = FindBetterTargetBy(
+                    initial,
+                    25,
+                    (e) => NumCircleTargets(e.Actor, 5) * 1000000 + (int)e.Actor.HP.Cur
+                ).Target;
                 range = tar.StayAtLongRange ? 25 : 15;
             }
 
