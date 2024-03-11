@@ -51,14 +51,12 @@ namespace BossMod
             public bool Expired(DateTime now) => ExpireAt < now || (Target?.IsDestroyed ?? false);
         }
 
-        private float[] _cooldowns; // assumed to be updated by external code
-        private WorldState _ws; // used to read current time
+        private WorldState _ws; // used to read current time and cooldowns
         private List<Entry> _queue = new();
         private bool _emergencyMode = false;
 
-        public ManualActionOverride(float[] cooldowns, WorldState ws)
+        public ManualActionOverride(WorldState ws)
         {
-            _cooldowns = cooldowns;
             _ws = ws;
         }
 
@@ -90,7 +88,7 @@ namespace BossMod
             int cdGroup = GetCooldownGroup(action, def);
             bool isGCD = cdGroup == CommonDefinitions.GCDGroup;
             float expire = isGCD ? 1.0f : 3.0f;
-            if (_cooldowns[cdGroup] - expire > def.CooldownAtFirstCharge)
+            if (_ws.Client.Cooldowns[def.CooldownGroup].Remaining - expire > def.CooldownAtFirstCharge)
             {
                 return;
             }
@@ -163,7 +161,7 @@ namespace BossMod
         {
             int cdGroup = GetCooldownGroup(e.Action, e.Definition);
             return e.Definition.CooldownGroup != CommonDefinitions.GCDGroup
-                && _cooldowns[cdGroup] - effAnimLock <= e.Definition.CooldownAtFirstCharge
+                && _ws.Client.Cooldowns[e.Definition.CooldownGroup].Remaining - effAnimLock <= e.Definition.CooldownAtFirstCharge
                 && effAnimLock + e.Definition.AnimationLock + animLockDelay <= deadline
                 && e.Allowed(player);
         }

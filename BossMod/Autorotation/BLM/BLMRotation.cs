@@ -59,8 +59,7 @@ namespace BossMod.BLM
 
             public AID BestPolySpell => Unlocked(AID.Xenoglossy) ? AID.Xenoglossy : AID.Foul;
 
-            public State(float[] cooldowns)
-                : base(cooldowns) { }
+            public State(WorldState ws) : base(ws) { }
 
             public bool Unlocked(AID aid) => Definitions.Unlocked(aid, Level, UnlockProgress);
 
