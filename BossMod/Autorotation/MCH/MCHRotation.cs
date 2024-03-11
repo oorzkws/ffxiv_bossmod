@@ -63,6 +63,9 @@ namespace BossMod.MCH
             if (ShouldUseChainsaw(state, strategy))
                 return AID.ChainSaw;
 
+            if (state.Unlocked(AID.Bioblaster) && state.CD(CDGroup.Drill) <= state.GCD && strategy.NumAOETargets > 1)
+                return AID.Bioblaster;
+
             if (ShouldUseDrill(state, strategy))
                 return AID.Drill;
 
@@ -81,12 +84,9 @@ namespace BossMod.MCH
             if ((!state.Unlocked(AID.Reassemble) || state.ReassembleLeft == 0) && canHotShot)
                 return AID.HotShot;
 
-            if (state.Unlocked(AID.Bioblaster) && state.CD(CDGroup.Drill) <= state.GCD && strategy.NumAOETargets > 1)
-                return AID.Bioblaster;
-
             if (strategy.NumAOETargets > 2)
             {
-                if (!state.IsOverheated && strategy.NumFlamethrowerTargets >= 3 && state.Unlocked(AID.Flamethrower))
+                if (!state.IsOverheated && strategy.NumFlamethrowerTargets >= 3 && state.Unlocked(AID.Flamethrower) && state.CD(CDGroup.Flamethrower) < state.GCD)
                     return AID.Flamethrower;
 
                 if (state.Unlocked(AID.Scattergun))
