@@ -244,14 +244,18 @@ namespace BossMod.BLM
                 return AID.None;
             }
 
-            if (
-                !state.TargetingEnemy
-                && state.ElementalLevel < 0
-                && (state.ElementalLeft < 5 || state.UmbralHearts < 3 || state.ElementalLevel > -3)
-                && state.Unlocked(AID.UmbralSoul)
-                && strategy.AutoRefresh
-            )
-                return AID.UmbralSoul;
+            if (!state.TargetingEnemy)
+            {
+                if (
+                    state.ElementalLevel < 0
+                    && (state.ElementalLeft < 5 || state.UmbralHearts < 3 || state.ElementalLevel > -3)
+                    && state.Unlocked(AID.UmbralSoul)
+                    && strategy.AutoRefresh
+                )
+                    return AID.UmbralSoul;
+                
+                return AID.None;
+            }
 
             // first check if F4 is unlocked and fire timer is running out. all other fire spells refresh the timer
             // TODO: needs some fixing. F4 F1 is 2.8s + 2.5s, F4 Despair is 2.8s + 3s, it is possible to skip this branch
@@ -412,7 +416,7 @@ namespace BossMod.BLM
                         if (state.CurMP >= 9000 && state.CurMP < 10000)
                             return (AID)LostActionID.LostFlareStar;
                     }
-                    else if (state.DutyActionCD(LostActionID.LostFontofMagic) == 0)
+                    else if (state.DutyActionCD(LostActionID.LostFontofMagic) == 0 && CanFoM(state, strategy))
                     {
                         if (state.LucidDreamingLeft == 0 && state.CD(CDGroup.LucidDreaming) == 0)
                             return AID.LucidDreaming;
@@ -568,7 +572,12 @@ namespace BossMod.BLM
         {
             return state.HasDutyAction(LostActionID.LostFlareStar)
                 && strategy.NumFlareStarTargets > 0
-                && state.MagicBurstLeft == 0
+                && state.MagicBurstLeft == 0;
+        }
+
+        private static bool CanFoM(State state, Strategy strategy)
+        {
+            return state.HasDutyAction(LostActionID.LostFontofMagic)
                 && strategy.TriplecastStrategy != CommonRotation.Strategy.OffensiveAbilityUse.Delay;
         }
     }
