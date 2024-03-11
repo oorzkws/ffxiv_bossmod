@@ -4,7 +4,7 @@ namespace BossMod.RDM
 {
     public static class Rotation
     {
-        public class State(float[] cooldowns) : CommonRotation.PlayerState(cooldowns)
+        public class State(WorldState ws) : CommonRotation.PlayerState(ws)
         {
             public float DualcastLeft; // 15s max
             public float SwiftcastLeft; // 10s max

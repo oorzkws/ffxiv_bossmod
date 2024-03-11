@@ -3,3 +3,5 @@ obj/
 bin/
 *.user
 logs/
+.vscode/
+.config/dotnet-tools.json

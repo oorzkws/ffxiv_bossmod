@@ -18,7 +18,7 @@ namespace BossMod.SGE
             : base(autorot, player, Definitions.UnlockQuests, Definitions.SupportedActions)
         {
             _config = Service.Config.Get<SGEConfig>();
-            _state = new(autorot.Cooldowns);
+            _state = new(autorot.WorldState);
             _strategy = new();
 
             _config.Modified += OnConfigModified;

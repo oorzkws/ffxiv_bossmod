@@ -398,9 +398,6 @@ namespace BossMod
             s.AttackGCDTime = FFXIVGame.ActionManager.GetAdjustedRecastTime(FFXIVGame.ActionType.Action, 9) / 1000f;
             s.SpellGCDTime = FFXIVGame.ActionManager.GetAdjustedRecastTime(FFXIVGame.ActionType.Action, 119) / 1000f;
 
-            s.DutyAction1 = GetDutyAction(0);
-            s.DutyAction2 = GetDutyAction(1);
-
             s.RaidBuffsLeft = vuln.Item1 ? vuln.Item2 : 0;
             foreach (var status in Player.Statuses.Where(s => IsDamageBuff(s.ID)))
             {

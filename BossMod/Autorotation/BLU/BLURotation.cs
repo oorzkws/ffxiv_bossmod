@@ -4,7 +4,7 @@ namespace BossMod.BLU
 {
     public static class Rotation
     {
-        public class State(float[] cooldowns) : CommonRotation.PlayerState(cooldowns)
+        public class State(WorldState ws) : CommonRotation.PlayerState(ws)
         {
             public bool TargetMortalFlame;
             public float TargetBoMLeft; // 60s max

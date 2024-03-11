@@ -70,23 +70,9 @@ namespace BossMod
             _queue.RemoveAll(CheckExpired);
         }
 
-        private static int GetCooldownGroup(ActionID action, ActionDefinition def)
-        {
-            // all duty actions are group 80 in sheets, but duty action 2's cd is tracked in group 81 when it is available
-            if (
-                def.CooldownGroup == CommonDefinitions.DutyAction1CDGroup
-                // starts at 0
-                && ActionManager.GetDutyActionId(1) == action.ID
-            )
-                return CommonDefinitions.DutyAction2CDGroup;
-
-            return def.CooldownGroup;
-        }
-
         public void Push(ActionID action, Actor? target, Vector3 targetPos, ActionDefinition def, Func<Actor?, bool>? condition, bool simulated = false)
         {
-            int cdGroup = GetCooldownGroup(action, def);
-            bool isGCD = cdGroup == CommonDefinitions.GCDGroup;
+            bool isGCD = def.CooldownGroup == CommonDefinitions.GCDGroup;
             float expire = isGCD ? 1.0f : 3.0f;
             if (_ws.Client.Cooldowns[def.CooldownGroup].Remaining - expire > def.CooldownAtFirstCharge)
             {
@@ -94,7 +80,7 @@ namespace BossMod
             }
 
             var expireAt = _ws.CurrentTime.AddSeconds(expire);
-            var index = _queue.FindIndex(e => e.Definition.CooldownGroup == cdGroup);
+            var index = _queue.FindIndex(e => e.Definition.CooldownGroup == def.CooldownGroup);
             if (index < 0)
             {
                 Service.Log($"[MAO] Queueing {action} @ {target}");
@@ -159,7 +145,6 @@ namespace BossMod
 
         private bool CheckOGCD(Entry e, Actor player, float effAnimLock, float animLockDelay, float deadline)
         {
-            int cdGroup = GetCooldownGroup(e.Action, e.Definition);
             return e.Definition.CooldownGroup != CommonDefinitions.GCDGroup
                 && _ws.Client.Cooldowns[e.Definition.CooldownGroup].Remaining - effAnimLock <= e.Definition.CooldownAtFirstCharge
                 && effAnimLock + e.Definition.AnimationLock + animLockDelay <= deadline

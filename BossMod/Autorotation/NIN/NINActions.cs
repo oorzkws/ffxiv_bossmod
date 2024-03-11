@@ -24,7 +24,7 @@ namespace BossMod.NIN
             : base(autorot, player, Definitions.UnlockQuests, Definitions.SupportedActions)
         {
             _config = Service.Config.Get<NINConfig>();
-            _state = new(autorot.Cooldowns);
+            _state = new(autorot.WorldState);
             _strategy = new();
 
             SupportedSpell(AID.Ten).TransformAction = SupportedSpell(AID.Ten2).TransformAction = () =>

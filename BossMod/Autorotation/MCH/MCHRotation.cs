@@ -2,7 +2,7 @@ namespace BossMod.MCH
 {
     public static class Rotation
     {
-        public class State(float[] cooldowns) : CommonRotation.PlayerState(cooldowns)
+        public class State(WorldState ws) : CommonRotation.PlayerState(ws)
         {
             public int Heat; // 100 max
             public int Battery; // 100 max

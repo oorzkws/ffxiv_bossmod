@@ -7,7 +7,7 @@ namespace BossMod.NIN
     {
         const float HUTON_REFRESH = 28.0f;
 
-        public class State(float[] cooldowns) : CommonRotation.PlayerState(cooldowns)
+        public class State(WorldState ws) : CommonRotation.PlayerState(ws)
         {
             public float KassatsuLeft;
             public float HutonLeft;

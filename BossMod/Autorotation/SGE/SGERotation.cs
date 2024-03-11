@@ -38,8 +38,8 @@ namespace BossMod.SGE
                         ? CDGroup.PhlegmaII
                         : CDGroup.Phlegma;
 
-            public State(float[] cooldowns)
-                : base(cooldowns) { }
+            public State(WorldState ws)
+                : base(ws) { }
 
             public bool Unlocked(AID aid) => Definitions.Unlocked(aid, Level, UnlockProgress);
 

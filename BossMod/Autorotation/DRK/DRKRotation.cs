@@ -7,7 +7,7 @@ namespace BossMod.DRK
         // 200 MP regen per tick in combat
         const int MP_OVERCAP_THRESHOLD = 9800;
 
-        public class State(float[] cooldowns) : CommonRotation.PlayerState(cooldowns)
+        public class State(WorldState ws) : CommonRotation.PlayerState(ws)
         {
             public bool HaveDarkArts;
             public byte Blood; // max 100

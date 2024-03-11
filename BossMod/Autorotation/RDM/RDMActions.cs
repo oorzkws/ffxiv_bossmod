@@ -17,7 +17,7 @@ namespace BossMod.RDM
             : base(autorot, player, Definitions.UnlockQuests, Definitions.SupportedActions)
         {
             _config = Service.Config.Get<RDMConfig>();
-            _state = new(autorot.Cooldowns);
+            _state = new(autorot.WorldState);
             _strategy = new();
 
             SupportedSpell(AID.Riposte).TransformAction = () => ActionID.MakeSpell(_state.BestRiposte);

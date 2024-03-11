@@ -98,14 +98,15 @@ namespace BossMod.MNK
             if (!Rotation.HaveTarget(_state, _strategy) || AutoAction < AutoActionAIFight)
                 return new();
 
+            var lostExSlot = _state.FindDutyActionSlot(BozjaActionID.GetNormal(BozjaHolsterID.LostExcellence));
             if (
                 _strategy.UseSTQOpener
                 && _state.LostExcellenceLeft > 0
                 && _state.FoPLeft == 0
-                && _state.HasDutyAction(LostActionID.LostExcellence)
+                && lostExSlot >= 0
                 && _state.CanWeave(0f, 2.1f, deadline)
             )
-                return LostActionSwap(LostActionID.BannerHonoredSacrifice, (uint)_state.DutyActionSlot(LostActionID.LostExcellence));
+                return LostActionSwap(LostActionID.BannerHonoredSacrifice, (uint)lostExSlot);
 
             ActionID res = new();
             if (_state.CanWeave(deadline - _state.OGCDSlotLength)) // first ogcd slot

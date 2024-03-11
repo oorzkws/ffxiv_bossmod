@@ -415,7 +415,7 @@ namespace BossMod.BLM
                         if (state.CurMP >= 9000 && state.CurMP < 10000)
                             return (AID)LostActionID.LostFlareStar;
                     }
-                    else if (state.DutyActionCD(LostActionID.LostFontofMagic) == 0 && CanFoM(state, strategy))
+                    else if (state.DutyActionCD(BozjaActionID.GetNormal(BozjaHolsterID.LostFontOfMagic)) == 0 && CanFoM(state, strategy))
                     {
                         if (state.LucidDreamingLeft == 0 && state.CD(CDGroup.LucidDreaming) == 0)
                             return AID.LucidDreaming;
@@ -569,14 +569,14 @@ namespace BossMod.BLM
 
         private static bool CanFlareStar(State state, Strategy strategy)
         {
-            return state.HasDutyAction(LostActionID.LostFlareStar)
+            return state.FindDutyActionSlot(BozjaActionID.GetNormal(BozjaHolsterID.LostFlareStar)) >= 0
                 && strategy.NumFlareStarTargets > 0
                 && state.MagicBurstLeft == 0;
         }
 
         private static bool CanFoM(State state, Strategy strategy)
         {
-            return state.HasDutyAction(LostActionID.LostFontofMagic)
+            return state.FindDutyActionSlot(BozjaActionID.GetNormal(BozjaHolsterID.LostFontOfMagic)) >= 0
                 && strategy.TriplecastStrategy != CommonRotation.Strategy.OffensiveAbilityUse.Delay;
         }
     }

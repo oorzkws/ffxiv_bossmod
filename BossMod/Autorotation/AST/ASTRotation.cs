@@ -57,8 +57,8 @@ namespace BossMod.AST
                     _ => false
                 };
 
-            public State(float[] cooldowns)
-                : base(cooldowns) { }
+            public State(WorldState ws)
+                : base(ws) { }
 
             public SealType NextSeal =>
                 DrawnCard switch

@@ -22,7 +22,7 @@ namespace BossMod.AST
             : base(autorot, player, Definitions.UnlockQuests, Definitions.SupportedActions)
         {
             _config = Service.Config.Get<ASTConfig>();
-            _state = new(autorot.Cooldowns);
+            _state = new(autorot.WorldState);
             _strategy = new();
 
             SupportedSpell(AID.Play).TransformAction = () => ActionID.MakeSpell(_state.BestPlay);
