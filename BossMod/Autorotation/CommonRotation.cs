@@ -55,6 +55,7 @@ namespace BossMod
 
             public float DutyActionCD(int slot) => slot is >= 0 and < 2 ? Cooldowns[CommonDefinitions.DutyAction0CDGroup + slot].Remaining : float.MaxValue;
             public float DutyActionCD(ActionID action) => DutyActionCD(FindDutyActionSlot(action));
+            public float DutyActionCD(BozjaHolsterID id) => DutyActionCD(BozjaActionID.GetNormal(id));
 
             // check whether weaving typical ogcd off cooldown would end its animation lock by the specified deadline
             public float OGCDSlotLength => 0.6f + AnimationLockDelay; // most actions have 0.6 anim lock delay, which allows double-weaving oGCDs between GCDs

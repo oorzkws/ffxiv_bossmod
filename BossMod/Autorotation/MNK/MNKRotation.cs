@@ -344,24 +344,34 @@ namespace BossMod.MNK
 
             if (strategy.UseSTQOpener)
             {
-                if (state.Form == Form.Raptor && state.CanWeave(state.DutyActionCD(BozjaActionID.GetNormal(BozjaHolsterID.LostExcellence)), 0.6f, deadline))
-                    return ActionID.MakeSpell(LostActionID.LostExcellence);
+                var hsac = BozjaActionID.GetNormal(BozjaHolsterID.BannerHonoredSacrifice);
+                var fop = BozjaActionID.GetNormal(BozjaHolsterID.LostFontOfPower);
+                var ex = BozjaActionID.GetNormal(BozjaHolsterID.LostExcellence);
 
-                if (state.LostExcellenceLeft > 0 && state.FoPLeft == 0) {
-                    var exSlot = state.FindDutyActionSlot(BozjaActionID.GetNormal(BozjaHolsterID.LostExcellence));
+                var hsacInBag = state.BozjaHolster[(int)BozjaHolsterID.BannerHonoredSacrifice] > 0;
+                var hsacSlot = state.FindDutyActionSlot(hsac, fop);
+                var exSlot = state.FindDutyActionSlot(ex, fop);
 
-                    if (state.BozjaHolster.Contains((byte)BozjaHolsterID.BannerHonoredSacrifice) && exSlot >= 0)
+                if (state.LostExcellenceLeft > 0) {
+                    if (state.HsacLeft > 0) {
+                        if (state.FoPLeft > 0) {
+                            if (state.CanWeave(state.PotionCD, 0.6f, deadline))
+                                return CommonDefinitions.IDPotionStr;
+                        }
+
+                        if (state.CanWeave(state.DutyActionCD(fop), 0.6f, deadline))
+                            return fop;
+                    }
+
+                    if (state.CanWeave(state.DutyActionCD(hsac), 0.6f, deadline))
+                        return hsac;
+
+                    if (hsacSlot < 0)
                         return ActionID.MakeBozjaHolster(BozjaHolsterID.BannerHonoredSacrifice, exSlot);
-
-                    if (state.CanWeave(state.DutyActionCD(BozjaActionID.GetNormal(BozjaHolsterID.LostFontOfPower)), 0.6f, deadline))
-                        return ActionID.MakeSpell(LostActionID.LostFontofPower);
                 }
 
-                if (state.LostExcellenceLeft > 0 && state.HsacLeft == 0 && state.CanWeave(state.DutyActionCD(BozjaActionID.GetNormal(BozjaHolsterID.BannerHonoredSacrifice)), 0.6f, deadline))
-                    return ActionID.MakeSpell(LostActionID.BannerHonoredSacrifice);
-
-                if (state.LostExcellenceLeft > 0 && state.HsacLeft > 0 && state.CanWeave(state.PotionCD, 0f, deadline))
-                    return CommonDefinitions.IDPotionStr;
+                if (state.Form == Form.Raptor && hsacInBag && exSlot >= 0 && state.CanWeave(state.DutyActionCD(ex), 0.6f, deadline))
+                    return ex;
             }
 
             if (state.GCD <= 0.800f && ShouldUseRoF(state, strategy, deadline))
