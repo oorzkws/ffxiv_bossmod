@@ -342,14 +342,20 @@ namespace BossMod.MNK
                 return new();
             }
 
-            // action swapping is handled in MNKActions since it returns NextAction and this function can only return ActionID and refactoring it will be annoying
             if (strategy.UseSTQOpener)
             {
                 if (state.Form == Form.Raptor && state.CanWeave(state.DutyActionCD(BozjaActionID.GetNormal(BozjaHolsterID.LostExcellence)), 0.6f, deadline))
                     return ActionID.MakeSpell(LostActionID.LostExcellence);
 
-                if (state.LostExcellenceLeft > 0 && state.FoPLeft == 0 && state.CanWeave(state.DutyActionCD(BozjaActionID.GetNormal(BozjaHolsterID.LostFontOfPower)), 0.6f, deadline))
-                    return ActionID.MakeSpell(LostActionID.LostFontofPower);
+                if (state.LostExcellenceLeft > 0 && state.FoPLeft == 0) {
+                    var exSlot = state.FindDutyActionSlot(BozjaActionID.GetNormal(BozjaHolsterID.LostExcellence));
+
+                    if (state.BozjaHolster.Contains((byte)BozjaHolsterID.BannerHonoredSacrifice) && exSlot >= 0)
+                        return ActionID.MakeBozjaHolster(BozjaHolsterID.BannerHonoredSacrifice, exSlot);
+
+                    if (state.CanWeave(state.DutyActionCD(BozjaActionID.GetNormal(BozjaHolsterID.LostFontOfPower)), 0.6f, deadline))
+                        return ActionID.MakeSpell(LostActionID.LostFontofPower);
+                }
 
                 if (state.LostExcellenceLeft > 0 && state.HsacLeft == 0 && state.CanWeave(state.DutyActionCD(BozjaActionID.GetNormal(BozjaHolsterID.BannerHonoredSacrifice)), 0.6f, deadline))
                     return ActionID.MakeSpell(LostActionID.BannerHonoredSacrifice);

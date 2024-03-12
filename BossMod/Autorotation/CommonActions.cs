@@ -519,15 +519,5 @@ namespace BossMod
             }
             return (bestTarget, bestPrio);
         }
-
-        protected NextAction LostActionSwap(LostActionID actionID, uint slot) {
-            var ix = Service.LostActionsHolster.IndexOf((uint)actionID);
-            if (ix < 0) {
-                Service.Log($"[CommonActions] Tried to swap action {actionID} into duty slot {slot}, but it is not in the holster");
-                return new();
-            }
-
-            return NextAction.ExecuteCommand(CommandID.UseLostAction, (uint)ix, slot, Service.ObjectTable[Player.SpawnIndex]!.ObjectId, 0);
-        }
     }
 }

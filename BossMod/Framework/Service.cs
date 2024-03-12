@@ -44,8 +44,6 @@ namespace BossMod
 
         public static ConfigRoot Config = new();
 
-        public static LostActionsHolster LostActionsHolster = new();
-
         //public static SharpDX.Direct3D11.Device? Device = null;
     }
 }

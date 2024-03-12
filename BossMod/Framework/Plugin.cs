@@ -45,7 +45,6 @@ namespace BossMod
             Service.LuminaGameData = Service.DataManager.GameData;
             Service.WindowSystem = new("vbm");
             //Service.Device = pluginInterface.UiBuilder.Device;
-            Service.Condition.ConditionChange += OnConditionChanged;
             MultiboxUnlock.Exec();
             Network.IDScramble.Initialize();
             Camera.Instance = new();
@@ -81,7 +80,6 @@ namespace BossMod
 
         public void Dispose()
         {
-            Service.Condition.ConditionChange -= OnConditionChanged;
             _wndDebug.Dispose();
             _wndReplay.Dispose();
             _wndBossmodHints.Dispose();
@@ -154,13 +152,6 @@ namespace BossMod
 
             Camera.Instance?.DrawWorldPrimitives();
             _prevUpdateTime = DateTime.Now - tsStart;
-        }
-
-        private void OnConditionChanged(ConditionFlag flag, bool value)
-        {
-            Service.Log($"Condition chage: {flag}={value}");
-            if(flag == ConditionFlag.BetweenAreas51 && !value)
-                Service.LostActionsHolster = new();
         }
     }
 }

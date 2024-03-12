@@ -106,7 +106,7 @@ namespace BossMod.MNK
                 && lostExSlot >= 0
                 && _state.CanWeave(0f, 2.1f, deadline)
             )
-                return LostActionSwap(LostActionID.BannerHonoredSacrifice, (uint)lostExSlot);
+                return MakeResult(ActionID.MakeBozjaHolster(BozjaHolsterID.BannerHonoredSacrifice, lostExSlot), null);
 
             ActionID res = new();
             if (_state.CanWeave(deadline - _state.OGCDSlotLength)) // first ogcd slot

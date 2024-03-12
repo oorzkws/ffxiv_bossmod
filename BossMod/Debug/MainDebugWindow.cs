@@ -157,10 +157,6 @@ namespace BossMod
             {
                 _debugVfx.Draw();
             }
-            if (ImGui.CollapsingHeader("Lost Actions holster"))
-            {
-                DrawHolster();
-            }
         }
 
         private void DrawStatuses()
@@ -283,32 +279,6 @@ namespace BossMod
             foreach (var w in Service.WindowSystem.Windows)
             {
                 ImGui.TextUnformatted($"{w.WindowName}: focus={w.IsFocused}");
-            }
-        }
-
-        private void DrawHolster()
-        {
-            var holster = Service.LostActionsHolster;
-            if (!holster.IsActive)
-            {
-                ImGui.TextUnformatted("Inactive, not in Bozja");
-                return;
-            }
-
-            List<(uint, uint)> currentActions = [];
-
-            for (var i = 0u; i < 93; i++)
-            {
-                var act = holster.GetSlot(i);
-                if (act > 0)
-                    currentActions.Add((i, act));
-            }
-
-            ImGui.TextUnformatted($"Capacity: {currentActions.Count}/93");
-
-            foreach((var i, var aid) in currentActions) {
-                var act = Service.LuminaRow<Lumina.Excel.GeneratedSheets.Action>(aid);
-                ImGui.TextUnformatted($"Slot {i}: {aid} '{act?.Name}'");
             }
         }
     }
