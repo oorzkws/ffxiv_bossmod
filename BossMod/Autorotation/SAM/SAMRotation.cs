@@ -406,6 +406,9 @@ namespace BossMod.SAM
             if (state.MeikyoLeft == 0 && state.LastTsubame < state.GCDTime * 3)
                 return ActionID.MakeSpell(AID.MeikyoShisui);
 
+            if (!state.Unlocked(AID.TsubameGaeshi) && !state.InCombo && state.CanWeave(state.CD(CDGroup.MeikyoShisui) - 55f, 0.6f, deadline))
+                return ActionID.MakeSpell(AID.MeikyoShisui);
+
             if (state.RangeToTarget > 3 && strategy.DashStrategy == Strategy.DashUse.UseOutsideMelee)
                 return ActionID.MakeSpell(AID.HissatsuGyoten);
 
