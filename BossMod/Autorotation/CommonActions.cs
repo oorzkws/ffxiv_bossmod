@@ -428,8 +428,8 @@ namespace BossMod
             strategy.CombatTimer = CombatTimer();
             strategy.ForbidDOTs = targetEnemy?.ForbidDOTs ?? false;
             strategy.ForceMovementIn = ActionManagerEx.Instance!.InputOverride.IsMoveRequested() ? 0 : MaxCastTime;
-            strategy.FightEndIn = downtime.Item1 ? 0 : downtime.Item2;
-            strategy.RaidBuffsIn = vuln.Item1 ? 0 : vuln.Item2;
+            strategy.FightEndIn = downtime.Item1 ? 10000f : downtime.Item2;
+            strategy.RaidBuffsIn = vuln.Item1 ? 10000f : vuln.Item2;
             if (Autorot.Bossmods.ActiveModule?.PlanConfig != null) // assumption: if there is no planning support for encounter (meaning it's something trivial, like outdoor boss), don't expect any cooldowns
                 strategy.RaidBuffsIn = Math.Min(strategy.RaidBuffsIn, Autorot.Bossmods.RaidCooldowns.NextDamageBuffIn(Autorot.WorldState.CurrentTime));
             strategy.PositionLockIn = Autorot.Config.EnableMovement && !poslock.Item1 ? poslock.Item2 : 0;

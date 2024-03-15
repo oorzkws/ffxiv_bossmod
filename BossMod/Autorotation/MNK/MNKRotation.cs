@@ -199,7 +199,7 @@ namespace BossMod.MNK
 
             // during fire windows, if next GCD is demo, force refresh to align loop; we can't use a lunar PB unless
             // DF + demo are close to max duration, since DF only lasts about 7-8 GCDs and a blitz window is 5
-            if (rofIsAligned && WillDemolishExpire(state, strategy, 4))
+            if (rofIsAligned && NeedDemolishRefresh(state, strategy, 4))
                 return AID.TwinSnakes;
 
             // normal refresh
@@ -218,7 +218,7 @@ namespace BossMod.MNK
                 return AID.Rockbreaker;
 
             // normal refresh
-            if (!strategy.ForbidDOTs && state.Unlocked(AID.Demolish) && WillDemolishExpire(state, strategy, 3))
+            if (!strategy.ForbidDOTs && state.Unlocked(AID.Demolish) && NeedDemolishRefresh(state, strategy, 3))
                 return AID.Demolish;
 
             return AID.SnapPunch;
@@ -287,7 +287,6 @@ namespace BossMod.MNK
             // TODO: calculate optimal DK spam before SSS
             if (
                 strategy.SSSUse == Strategy.OffensiveAbilityUse.Automatic
-                && strategy.FightEndIn > state.GCD
                 && strategy.FightEndIn < state.GCD + state.AttackGCDTime
                 && state.Unlocked(AID.SixSidedStar)
             )
@@ -320,12 +319,12 @@ namespace BossMod.MNK
             if (isCastingGcd && !formIsPending && state.PerfectBalanceLeft == 0)
                 gcdsUntilCoeurl -= 1;
 
-            var willDemolish = state.Unlocked(AID.Demolish) && WillDemolishExpire(state, strategy, gcdsUntilCoeurl);
+            var willDemolish = state.Unlocked(AID.Demolish) && NeedDemolishRefresh(state, strategy, gcdsUntilCoeurl);
 
             return (willDemolish ? Positional.Rear : Positional.Flank, curForm == Form.Coeurl);
         }
 
-        public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline)
+        public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline, float finalOGCDDeadline)
         {
             // TODO: potion
 
@@ -414,7 +413,7 @@ namespace BossMod.MNK
             if (ShouldUseRoW(state, strategy, deadline))
                 return ActionID.MakeSpell(AID.RiddleOfWind);
 
-            if (ShouldUseTrueNorth(state, strategy) && state.CanWeave(state.CD(CDGroup.TrueNorth) - 45, 0.6f, deadline))
+            if (ShouldUseTrueNorth(state, strategy, finalOGCDDeadline) && state.CanWeave(state.CD(CDGroup.TrueNorth) - 45, 0.6f, deadline))
                 return ActionID.MakeSpell(AID.TrueNorth);
 
             if (ShouldDash(state, strategy, deadline))
@@ -449,16 +448,16 @@ namespace BossMod.MNK
                 // see ShouldUsePB for more context
                 if (canCoeurl && canRaptor)
                 {
-                    if (WillDemolishExpire(state, strategy, 2))
+                    if (NeedDemolishRefresh(state, strategy, 2))
                         return Form.Coeurl;
                     if (WillDFExpire(state, 2))
                         return Form.Raptor;
                 }
                 else if (canCoeurl)
                 {
-                    if (state.BeastCount == 1 && WillDemolishExpire(state, strategy, 1))
+                    if (state.BeastCount == 1 && NeedDemolishRefresh(state, strategy, 1))
                         return Form.Coeurl;
-                    else if (state.BeastCount == 2 && WillDemolishExpire(state, strategy, 5))
+                    else if (state.BeastCount == 2 && NeedDemolishRefresh(state, strategy, 5))
                         return Form.Coeurl;
                 }
                 else if (canRaptor)
@@ -527,6 +526,9 @@ namespace BossMod.MNK
             if (strategy.FireUse == Strategy.FireStrategy.Force)
                 return true;
 
+            if (strategy.FightEndIn < 20)
+                return false;
+
             // prevent early use in standard opener
             return state.DisciplinedFistLeft > state.GCD;
         }
@@ -543,6 +545,9 @@ namespace BossMod.MNK
             if (strategy.WindUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
 
+            if (strategy.FightEndIn < 15)
+                return false;
+
             // thebalance recommends using RoW like an oGCD dot, so we use on cooldown as long as buffs have been used first
             return state.CD(CDGroup.RiddleOfFire) > 0 && state.CD(CDGroup.Brotherhood) > 0;
         }
@@ -558,6 +563,9 @@ namespace BossMod.MNK
 
             if (strategy.BrotherhoodUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
+
+            if (strategy.FightEndIn < 15)
+                return false;
 
             return !strategy.UseAOE
                 && state.CD(CDGroup.RiddleOfFire) > 0
@@ -583,11 +591,14 @@ namespace BossMod.MNK
             if (strategy.PerfectBalanceUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
 
+            if (strategy.FightEndIn < state.GCD + state.AttackGCDTime * 3)
+                return false;
+
             // with enough haste/low enough GCD (< 1.6, currently exclusive to bozja), double lunar is possible without dropping buffs
             // via lunar -> opo -> snakes -> pb -> lunar
             // this is the only time PB use is not directly after an opo GCD
             if (state.Form == Form.Coeurl && state.FireLeft > deadline + state.AttackGCDTime * 3)
-                return !WillDFExpire(state, 5) && !WillDemolishExpire(state, strategy, 3);
+                return !WillDFExpire(state, 5) && !NeedDemolishRefresh(state, strategy, 3);
 
             if (state.Form != Form.Raptor)
                 return false;
@@ -599,10 +610,10 @@ namespace BossMod.MNK
             if (ShouldUseRoF(state, strategy, deadline) || state.FireLeft > deadline + state.AttackGCDTime * 3 || !state.Unlocked(AID.RiddleOfFire))
             {
                 if (!CanSolar(state, strategy))
-                    return !WillDFExpire(state, 5) && !WillDemolishExpire(state, strategy, 6);
+                    return !WillDFExpire(state, 5) && !NeedDemolishRefresh(state, strategy, 6);
 
                 // see haste note above; delay standard even window PB2 in favor of double lunar
-                if (WillDFExpire(state, 3) && !WillDemolishExpire(state, strategy, 5))
+                if (WillDFExpire(state, 3) && !NeedDemolishRefresh(state, strategy, 5))
                     return false;
 
                 return true;
@@ -611,7 +622,7 @@ namespace BossMod.MNK
             // odd windows where natural demolish happens before RoF, at most 3 GCDs prior - raptor GCD is forced to
             // be twin snakes if this is the case, so we don't need to check DF timer
             if (!CanSolar(state, strategy) && ShouldUseRoF(state, strategy, state.GCD + state.AttackGCDTime))
-                return !WillDemolishExpire(state, strategy, 7);
+                return !NeedDemolishRefresh(state, strategy, 7);
 
             // bhood 2 window: natural demolish happens in the middle of RoF. i don't remember exactly why this is the rule
             // but the first blitz has to be RP
@@ -620,12 +631,12 @@ namespace BossMod.MNK
                 && !ShouldUseRoF(state, strategy, deadline)
                 && ShouldUseRoF(state, strategy, deadline + state.AttackGCDTime * 3)
             )
-                return !WillDemolishExpire(state, strategy, 7);
+                return !NeedDemolishRefresh(state, strategy, 7);
 
             return false;
         }
 
-        private static bool ShouldUseTrueNorth(State state, Strategy strategy)
+        private static bool ShouldUseTrueNorth(State state, Strategy strategy, float lastOgcdDeadline)
         {
             if (
                 strategy.TrueNorthUse == Strategy.OffensiveAbilityUse.Delay
@@ -635,13 +646,32 @@ namespace BossMod.MNK
             if (strategy.TrueNorthUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
 
-            return strategy.NextPositionalImminent && !strategy.NextPositionalCorrect;
+            var positionalIsWrong = strategy.NextPositionalImminent && !strategy.NextPositionalCorrect;
+
+            // always late weave true north if possible (it's annoying for it to be used immediately)
+            // but prioritize Riddle of Fire over it
+            if (ShouldUseRoF(state, strategy, lastOgcdDeadline))
+                return positionalIsWrong;
+            else
+                return positionalIsWrong && state.GCD <= 0.800;
         }
 
-        public static bool HaveTarget(State state, Strategy strategy) => state.TargetingEnemy || strategy.UseAOE;
+        // UseAOE is only true if enemies are in range
+        public static bool HaveTarget(State state, Strategy strategy) =>
+            state.TargetingEnemy || strategy.UseAOE;
 
-        private static bool WillDemolishExpire(State state, Strategy strategy, int gcds) =>
-            !strategy.UseAOE && WillStatusExpire(state, gcds, state.TargetDemolishLeft);
+        private static bool NeedDemolishRefresh(State state, Strategy strategy, int gcds) {
+            // don't care
+            if (strategy.UseAOE) return false;
+
+            if (WillStatusExpire(state, gcds, state.TargetDemolishLeft))
+                // snap is 280 (if flank) potency
+                // demo is 310 (if rear) potency after 3 ticks: 100 + 70 * 3
+                // TODO: this should actually be calculating from the time when we expect to refresh demolish, rather than naively adding duration to the current one, but it probably works for most purposes?
+                return state.TargetDemolishLeft + 9 <= strategy.FightEndIn;
+
+            return false;
+        }
 
         private static bool WillDFExpire(State state, int gcds) =>
             WillStatusExpire(state, gcds, state.DisciplinedFistLeft);

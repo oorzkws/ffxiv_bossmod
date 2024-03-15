@@ -100,9 +100,9 @@ namespace BossMod.MNK
 
             ActionID res = new();
             if (_state.CanWeave(deadline - _state.OGCDSlotLength)) // first ogcd slot
-                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline - _state.OGCDSlotLength);
+                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline - _state.OGCDSlotLength, deadline);
             if (!res && _state.CanWeave(deadline)) // second/only ogcd slot
-                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline);
+                res = Rotation.GetNextBestOGCD(_state, _strategy, deadline, deadline);
             return MakeResult(res, Autorot.PrimaryTarget);
         }
 
