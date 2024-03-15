@@ -136,6 +136,8 @@ namespace BossMod.MNK
             public OffensiveAbilityUse SSSUse;
             public OffensiveAbilityUse TrueNorthUse;
 
+            public float ActualFightEndIn => FightEndIn == 0 ? 10000f : FightEndIn;
+
             public override string ToString()
             {
                 return $"AOE={NumPointBlankAOETargets}/{NumEnlightenmentTargets}, no-dots={ForbidDOTs}";
@@ -287,7 +289,7 @@ namespace BossMod.MNK
             // TODO: calculate optimal DK spam before SSS
             if (
                 strategy.SSSUse == Strategy.OffensiveAbilityUse.Automatic
-                && strategy.FightEndIn < state.GCD + state.AttackGCDTime
+                && strategy.ActualFightEndIn < state.GCD + state.AttackGCDTime
                 && state.Unlocked(AID.SixSidedStar)
             )
                 return AID.SixSidedStar;
@@ -526,7 +528,7 @@ namespace BossMod.MNK
             if (strategy.FireUse == Strategy.FireStrategy.Force)
                 return true;
 
-            if (strategy.FightEndIn < 20)
+            if (strategy.ActualFightEndIn < 20)
                 return false;
 
             // prevent early use in standard opener
@@ -545,7 +547,7 @@ namespace BossMod.MNK
             if (strategy.WindUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
 
-            if (strategy.FightEndIn < 15)
+            if (strategy.ActualFightEndIn < 15)
                 return false;
 
             // thebalance recommends using RoW like an oGCD dot, so we use on cooldown as long as buffs have been used first
@@ -564,7 +566,7 @@ namespace BossMod.MNK
             if (strategy.BrotherhoodUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
 
-            if (strategy.FightEndIn < 15)
+            if (strategy.ActualFightEndIn < 15)
                 return false;
 
             return !strategy.UseAOE
@@ -591,7 +593,7 @@ namespace BossMod.MNK
             if (strategy.PerfectBalanceUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
 
-            if (strategy.FightEndIn < state.GCD + state.AttackGCDTime * 3)
+            if (strategy.ActualFightEndIn < state.GCD + state.AttackGCDTime * 3)
                 return false;
 
             // with enough haste/low enough GCD (< 1.6, currently exclusive to bozja), double lunar is possible without dropping buffs
@@ -657,8 +659,7 @@ namespace BossMod.MNK
         }
 
         // UseAOE is only true if enemies are in range
-        public static bool HaveTarget(State state, Strategy strategy) =>
-            state.TargetingEnemy || strategy.UseAOE;
+        public static bool HaveTarget(State state, Strategy strategy) => state.TargetingEnemy || strategy.UseAOE;
 
         private static bool NeedDemolishRefresh(State state, Strategy strategy, int gcds) {
             // don't care
@@ -668,7 +669,7 @@ namespace BossMod.MNK
                 // snap is 280 (if flank) potency
                 // demo is 310 (if rear) potency after 3 ticks: 100 + 70 * 3
                 // TODO: this should actually be calculating from the time when we expect to refresh demolish, rather than naively adding duration to the current one, but it probably works for most purposes?
-                return state.TargetDemolishLeft + 9 <= strategy.FightEndIn;
+                return strategy.ActualFightEndIn > state.TargetDemolishLeft + 9;
 
             return false;
         }

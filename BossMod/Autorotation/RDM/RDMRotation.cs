@@ -94,6 +94,8 @@ namespace BossMod.RDM
             public int NumMoulinetTargets; // 8y/120deg cone
             public int NumResolutionTargets; // 25y/4y rect
 
+            public float ActualFightEndIn => FightEndIn == 0 ? 10000f : FightEndIn;
+
             public void ApplyStrategyOverrides(uint[] overrides) { }
         }
 
@@ -102,7 +104,7 @@ namespace BossMod.RDM
             var castEndIn = state.GCD + castTime;
             var moveOk = castTime == 0 || strategy.ForceMovementIn > castEndIn;
 
-            return moveOk && strategy.FightEndIn > castEndIn;
+            return moveOk && strategy.ActualFightEndIn > castEndIn;
         }
 
         private static bool CanCast(State state, Strategy strategy, AID action) =>
@@ -141,7 +143,7 @@ namespace BossMod.RDM
             }
             else
             {
-                if (state.MinMana >= 50 - (state.ManaStacks * 15) && state.CanMelee)
+                if (state.MinMana >= 50 - (state.ManaStacks * 15) && state.CanMelee && state.DualcastLeft == 0)
                     return state.BestRiposte;
             }
 

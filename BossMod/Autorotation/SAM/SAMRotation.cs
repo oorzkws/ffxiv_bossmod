@@ -165,6 +165,8 @@ namespace BossMod.SAM
             public int NumOgiTargets;
             public int NumGurenTargets;
 
+            public float ActualFightEndIn => FightEndIn == 0 ? 10000f : FightEndIn;
+
             public bool UseAOERotation => NumAOETargets >= 3;
 
             public void ApplyStrategyOverrides(uint[] overrides)
@@ -480,7 +482,7 @@ namespace BossMod.SAM
         {
             return state.RaidBuffsLeft > deadline
                 // fight will end before next window, use everything
-                || strategy.RaidBuffsIn > strategy.FightEndIn
+                || strategy.RaidBuffsIn > strategy.ActualFightEndIn
                 // general combat, no module active. yolo
                 || strategy.RaidBuffsIn > 9000;
         }
@@ -496,7 +498,7 @@ namespace BossMod.SAM
             // force use to get shoha even if the target is dying, dot overwrite doesn't matter
             if (
                 strategy.HiganbanaStrategy != Strategy.HiganbanaUse.Eager
-                && strategy.FightEndIn - state.GCD < 45
+                && strategy.ActualFightEndIn - state.GCD < 45
             )
                 return state.MeditationStacks == 2;
 
