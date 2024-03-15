@@ -211,7 +211,7 @@ namespace BossMod.BLM
                 minMP = state.MPDrainPerHalfTick + 1;
 
             return moveOk
-                && (strategy.FightEndIn == 0 || strategy.FightEndIn > castEndIn)
+                && strategy.FightEndIn > castEndIn
                 && state.ExpectedMPAfter(castEndIn) >= mpCost + minMP;
         }
 
@@ -372,7 +372,7 @@ namespace BossMod.BLM
 
             // if fight ending, dump resources instead of switching to ice
             // (assuming <800 MP left here, otherwise one of the earlier branches would have been taken)
-            if (strategy.FightEndIn > 0 && strategy.FightEndIn < state.GetCastEnd(AID.Blizzard3) + state.SpellGCDTime)
+            if (strategy.FightEndIn < state.GetCastEnd(AID.Blizzard3) + state.SpellGCDTime)
             {
                 if (CanPoly(state, strategy, 1))
                     return state.BestPolySpell;

@@ -496,8 +496,7 @@ namespace BossMod.SAM
             // force use to get shoha even if the target is dying, dot overwrite doesn't matter
             if (
                 strategy.HiganbanaStrategy != Strategy.HiganbanaUse.Eager
-                && strategy.FightEndIn > 0
-                && (strategy.FightEndIn - state.GCD) < 45
+                && strategy.FightEndIn - state.GCD < 45
             )
                 return state.MeditationStacks == 2;
 
