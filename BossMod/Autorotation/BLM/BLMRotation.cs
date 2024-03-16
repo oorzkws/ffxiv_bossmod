@@ -495,11 +495,15 @@ namespace BossMod.BLM
 
             if (
                 !state.TargetingEnemy
-                && state.ElementalLevel > 0
                 && state.CanWeave(CDGroup.Transpose, 0.6f, deadline)
                 && strategy.AutoRefresh
-            )
-                return ActionID.MakeSpell(AID.Transpose);
+            ) {
+                if (state.ElementalLevel > 0)
+                    return ActionID.MakeSpell(AID.Transpose);
+
+                if (state.ElementalLeft < 5 && state.Unlocked(TraitID.EnhancedEnochian1) && !state.Unlocked(AID.UmbralSoul))
+                    return ActionID.MakeSpell(AID.Transpose);
+            }
 
             if (
                 state.FirestarterLeft > state.GCD
