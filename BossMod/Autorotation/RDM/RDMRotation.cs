@@ -211,7 +211,7 @@ namespace BossMod.RDM
                 if (state.CanWeave(CDGroup.Embolden, 0.6f, deadline))
                     return ActionID.MakeSpell(AID.Embolden);
 
-                if (state.CanWeave(CDGroup.Manafication, 0.6f, deadline))
+                if (state.CanWeave(CDGroup.Manafication, 0.6f, deadline) && state.ManaStacks == 0)
                     return ActionID.MakeSpell(AID.Manafication);
             }
 
