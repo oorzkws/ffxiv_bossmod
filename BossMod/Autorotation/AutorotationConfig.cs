@@ -20,5 +20,8 @@
 
         [PropertyDisplay("Sticky auto actions")]
         public bool StickyAutoActions = false;
+
+        [PropertyDisplay("Automatically disable autorotation when combat ends")]
+        public bool AutoExpireAfterCombat = true;
     }
 }

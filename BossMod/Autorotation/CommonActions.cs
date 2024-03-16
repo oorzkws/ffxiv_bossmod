@@ -125,7 +125,8 @@ namespace BossMod
             else if (!Player.InCombat && wasInCombat)
             {
                 _playerCombatStart = new();
-                _autoActionExpire = new(); // immediately expire auto actions, if any
+                if (Autorot.Config.AutoExpireAfterCombat)
+                    _autoActionExpire = new(); // immediately expire auto actions, if any
             }
 
             // prepull expiration logic: if we queue up any action during countdown, and then countdown is cancelled, we don't really want to pull
