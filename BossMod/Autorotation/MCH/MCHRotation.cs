@@ -10,6 +10,7 @@ namespace BossMod.MCH
             public float ReassembleLeft; // 5s max
             public float WildfireLeft; // 10s max
             public float PelotonLeft;
+            public bool UsingFlamethrower;
             public bool IsOverheated;
             public bool HasMinion;
 
@@ -36,7 +37,7 @@ namespace BossMod.MCH
         public class Strategy : CommonRotation.Strategy
         {
             public int NumAOETargets; // 12y/90deg cone for scattergun, bioblaster, auto crossbow
-            public int NumFlamethrowerTargets; // 8y/90deg cone for a skill that nobody uses
+            public int NumFlamethrowerTargets; // 8y/90deg cone
             public int NumChainsawTargets; // 25/4y rect
             public int NumRicochetTargets; // 5y circle around target
 
@@ -45,6 +46,9 @@ namespace BossMod.MCH
 
         public static AID GetNextBestGCD(State state, Strategy strategy)
         {
+            if (FlamethrowerPause(state, strategy))
+                return AID.None;
+
             if (state.IsOverheated)
             {
                 if (strategy.NumAOETargets > 2 && state.Unlocked(AID.AutoCrossbow))
@@ -107,6 +111,9 @@ namespace BossMod.MCH
 
         public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline)
         {
+            if (FlamethrowerPause(state, strategy))
+                return new();
+
             // check for full charges
             if (state.Unlocked(AID.GaussRound) && state.CanWeave(state.FullGaussCD, 0.6f, deadline))
                 return ActionID.MakeSpell(AID.GaussRound);
@@ -253,5 +260,7 @@ namespace BossMod.MCH
 
         private static bool ShouldUseBurst(State state, Strategy strategy, float deadline) =>
             state.RaidBuffsLeft >= deadline || strategy.RaidBuffsIn > 9000;
+
+        private static bool FlamethrowerPause(State state, Strategy strategy) => state.UsingFlamethrower && strategy.NumAOETargets >= 3;
     }
 }

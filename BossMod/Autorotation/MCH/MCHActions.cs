@@ -141,6 +141,8 @@ namespace BossMod.MCH
             _state.ReassembleLeft = StatusDetails(Player, SID.Reassembled, Player.InstanceID).Left;
             _state.WildfireLeft = StatusDetails(Player, SID.WildfireActive, Player.InstanceID).Left;
 
+            _state.UsingFlamethrower = StatusDetails(Player, SID.Flamethrower, Player.InstanceID).Left > 0;
+
             var pelo = Player.FindStatus((uint)SID.Peloton);
             if (pelo != null)
                 _state.PelotonLeft = StatusDuration(pelo.Value.ExpireAt);
