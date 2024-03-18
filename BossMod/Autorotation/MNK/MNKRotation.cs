@@ -115,6 +115,19 @@ namespace BossMod.MNK
 
             public NadiChoice NextNadi;
 
+            public enum FormChoice : uint
+            {
+                Automatic = 0,
+                [PropertyDisplay("Opo-Opo", 0xFF3B34DA)]
+                Opo = 1,
+                [PropertyDisplay("Raptor", 0xFF38D17B)]
+                Raptor = 2,
+                [PropertyDisplay("Coeurl", 0xFFA264D7)]
+                Coeurl = 3
+            }
+
+            public FormChoice OpenerForm;
+
             public enum FireStrategy : uint
             {
                 Automatic = 0, // use on cooldown-ish if something is targetable
@@ -126,7 +139,16 @@ namespace BossMod.MNK
                 Force = 2,
 
                 [PropertyDisplay("Delay until Brotherhood is off cooldown")]
-                DelayUntilBrotherhood = 3
+                DelayUntilBrotherhood = 3,
+
+                [PropertyDisplay("Delay until 1 Beast Chakra is opened")]
+                DelayBeast1 = 4,
+
+                [PropertyDisplay("Delay until 2 Beast Chakra are opened")]
+                DelayBeast2 = 5,
+
+                [PropertyDisplay("Delay until 3 Beast Chakra are opened")]
+                DelayBeast3 = 6
             }
 
             public FireStrategy FireUse;
@@ -135,6 +157,7 @@ namespace BossMod.MNK
             public OffensiveAbilityUse PerfectBalanceUse;
             public OffensiveAbilityUse SSSUse;
             public OffensiveAbilityUse TrueNorthUse;
+            public OffensiveAbilityUse DemolishUse;
 
             public float ActualFightEndIn => FightEndIn == 0 ? 10000f : FightEndIn;
 
@@ -145,7 +168,7 @@ namespace BossMod.MNK
 
             public void ApplyStrategyOverrides(uint[] overrides)
             {
-                if (overrides.Length >= 8)
+                if (overrides.Length >= 10)
                 {
                     DashUse = (DashStrategy)overrides[0];
                     TrueNorthUse = (OffensiveAbilityUse)overrides[1];
@@ -155,6 +178,8 @@ namespace BossMod.MNK
                     BrotherhoodUse = (OffensiveAbilityUse)overrides[5];
                     PerfectBalanceUse = (OffensiveAbilityUse)overrides[6];
                     SSSUse = (OffensiveAbilityUse)overrides[7];
+                    OpenerForm = (FormChoice)overrides[8];
+                    DemolishUse = (OffensiveAbilityUse)overrides[9];
                 }
                 else
                 {
@@ -166,6 +191,8 @@ namespace BossMod.MNK
                     BrotherhoodUse = OffensiveAbilityUse.Automatic;
                     PerfectBalanceUse = OffensiveAbilityUse.Automatic;
                     SSSUse = OffensiveAbilityUse.Automatic;
+                    OpenerForm = FormChoice.Automatic;
+                    DemolishUse = OffensiveAbilityUse.Automatic;
                 }
             }
         }
@@ -202,6 +229,9 @@ namespace BossMod.MNK
             // during fire windows, if next GCD is demo, force refresh to align loop; we can't use a lunar PB unless
             // DF + demo are close to max duration, since DF only lasts about 7-8 GCDs and a blitz window is 5
             if (rofIsAligned && NeedDemolishRefresh(state, strategy, 4))
+                return AID.TwinSnakes;
+
+            if (state.FireLeft >= state.GCD + state.AttackGCDTime * 3 && !state.HaveLunar && WillDFExpire(state, 5))
                 return AID.TwinSnakes;
 
             // normal refresh
@@ -375,8 +405,18 @@ namespace BossMod.MNK
                     return ex;
             }
 
-            if (state.GCD <= 0.800f && ShouldUseRoF(state, strategy, deadline))
-                return ActionID.MakeSpell(AID.RiddleOfFire);
+            if (state.GCD <= 0.800f && ShouldUseRoF(state, strategy, deadline)) {
+                // this is checked separately here because other functions (notably ShouldUsePB) make decisions
+                // based on whether RoF is expected to be off cooldown by a given time
+                var shouldRoFDelayed = strategy.FireUse switch {
+                    Strategy.FireStrategy.DelayBeast1 => state.BeastCount == 1,
+                    Strategy.FireStrategy.DelayBeast2 => state.BeastCount == 2,
+                    Strategy.FireStrategy.DelayBeast3 => state.BeastCount == 3,
+                    _ => true
+                };
+                if (shouldRoFDelayed)
+                    return ActionID.MakeSpell(AID.RiddleOfFire);
+            }
 
             if (ShouldUsePB(state, strategy, deadline))
                 return ActionID.MakeSpell(AID.PerfectBalance);
@@ -450,6 +490,8 @@ namespace BossMod.MNK
                 // see ShouldUsePB for more context
                 if (canCoeurl && canRaptor)
                 {
+                    if (state.DisciplinedFistLeft == 0)
+                        return Form.Raptor;
                     if (NeedDemolishRefresh(state, strategy, 2))
                         return Form.Coeurl;
                     if (WillDFExpire(state, 2))
@@ -486,8 +528,20 @@ namespace BossMod.MNK
                 return canOpo ? Form.OpoOpo : canCoeurl ? Form.Coeurl : Form.Raptor;
             }
 
-            if (state.FormShiftLeft > state.GCD)
+            if (state.FormShiftLeft > state.GCD) {
+                if (strategy.OpenerForm != Strategy.FormChoice.Automatic) {
+                return strategy.OpenerForm == Strategy.FormChoice.Coeurl
+                    ? Form.Coeurl
+                    : strategy.OpenerForm == Strategy.FormChoice.Raptor
+                        ? Form.Raptor
+                        : Form.OpoOpo; 
+                }
+
+                if (NeedDemolishRefresh(state, strategy, 2) && state.DisciplinedFistLeft > state.GCD)
+                    return Form.Coeurl;
+
                 return Form.OpoOpo;
+            }
 
             return state.Form;
         }
@@ -665,11 +719,17 @@ namespace BossMod.MNK
             // don't care
             if (strategy.UseAOE) return false;
 
+            if (strategy.DemolishUse == CommonRotation.Strategy.OffensiveAbilityUse.Force)
+                return true;
+
+            if (strategy.DemolishUse == CommonRotation.Strategy.OffensiveAbilityUse.Delay)
+                return false;
+
             if (WillStatusExpire(state, gcds, state.TargetDemolishLeft))
                 // snap is 280 (if flank) potency
                 // demo is 310 (if rear) potency after 3 ticks: 100 + 70 * 3
                 // TODO: this should actually be calculating from the time when we expect to refresh demolish, rather than naively adding duration to the current one, but it probably works for most purposes?
-                return strategy.ActualFightEndIn > state.TargetDemolishLeft + 9;
+                return true; // strategy.ActualFightEndIn > state.TargetDemolishLeft + 9;
 
             return false;
         }

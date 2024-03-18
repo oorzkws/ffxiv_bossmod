@@ -162,6 +162,8 @@ namespace BossMod
                 new("PerfBal", typeof(CommonRotation.Strategy.OffensiveAbilityUse))
             );
             c.StrategyTracks.Add(new("SSS", typeof(CommonRotation.Strategy.OffensiveAbilityUse)));
+            c.StrategyTracks.Add(new("OpenForm", typeof(MNK.Rotation.Strategy.FormChoice)));
+            c.StrategyTracks.Add(new("Demolish", typeof(CommonRotation.Strategy.OffensiveAbilityUse)));
             return c;
         }
 
