@@ -58,8 +58,8 @@ namespace BossMod.MNK
             UpdatePlayerState();
             FillCommonStrategy(_strategy, CommonDefinitions.IDPotionStr);
             _strategy.ApplyStrategyOverrides(Autorot.Bossmods.ActiveModule?.PlanExecution?.ActiveStrategyOverrides(Autorot.Bossmods.ActiveModule.StateMachine) ?? new uint[0]);
-            _strategy.NumBlitzTargets = NumTargetsHitByPBAOE();
-            _strategy.NumPointBlankAOETargets = autoAction == AutoActionST ? 0 : _strategy.NumBlitzTargets;
+            _strategy.NumBlitzTargets = NumTargetsHitByBlitz();
+            _strategy.NumPointBlankAOETargets = autoAction == AutoActionST ? 0 : NumTargetsHitByPBAOE();
             _strategy.NumEnlightenmentTargets = Autorot.PrimaryTarget != null && autoAction != AutoActionST && _state.Unlocked(AID.HowlingFist) ? NumTargetsHitByEnlightenment(Autorot.PrimaryTarget) : 0;
             _strategy.UseAOE = _strategy.NumPointBlankAOETargets >= 3;
             _strategy.UseSTQOpener = autoAction == AutoActionSTQOpener;
@@ -168,6 +168,12 @@ namespace BossMod.MNK
             _strategy.AutoFormShift = _config.AutoFormShift;
 
             // smart targets
+        }
+
+        private int NumTargetsHitByBlitz() {
+            if (_state.BestBlitz is AID.TornadoKick or AID.PhantomRush)
+                return Autorot.PrimaryTarget == null ? 0 : Autorot.Hints.NumPriorityTargetsInAOECircle(Autorot.PrimaryTarget.Position, 5);
+            return Autorot.Hints.NumPriorityTargetsInAOECircle(Player.Position, 5);
         }
 
         private int NumTargetsHitByPBAOE() => Autorot.Hints.NumPriorityTargetsInAOECircle(Player.Position, 5);

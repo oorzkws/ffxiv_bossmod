@@ -409,8 +409,8 @@ namespace BossMod.MNK
                 // this is checked separately here because other functions (notably ShouldUsePB) make decisions
                 // based on whether RoF is expected to be off cooldown by a given time
                 var shouldRoFDelayed = strategy.FireUse switch {
-                    Strategy.FireStrategy.DelayBeast1 => state.BeastCount == 1,
-                    Strategy.FireStrategy.DelayBeast2 => state.BeastCount == 2,
+                    Strategy.FireStrategy.DelayBeast1 => state.BeastCount >= 1,
+                    Strategy.FireStrategy.DelayBeast2 => state.BeastCount >= 2,
                     Strategy.FireStrategy.DelayBeast3 => state.BeastCount == 3,
                     _ => true
                 };
