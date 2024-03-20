@@ -116,6 +116,7 @@ namespace BossMod.SGE
         Autophysis = 2621, // applied by Physis II to self
         EukrasianDiagnosis = 2607, // applied by Eukrasian Diagnosis to target
         DifferentialDiagnosis = 2608, // applied by crit Eukrasian Diagnosis to target
+        EukrasianPrognosis = 2609, // applied by Eukrasian Prognosis to self
         EukrasianDosis = 2614, // applied by Eukrasian Dosis to target
         EukrasianDosisII = 2615, // applied by Eukrasian Dosis II to target
         EukrasianDosisIII = 2616, // applied by Eukrasian Dosis III to target

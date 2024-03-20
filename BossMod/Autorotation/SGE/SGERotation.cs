@@ -12,6 +12,7 @@ namespace BossMod.SGE
             public float NextGall; // 20 max
             public int Sting; // 3 max
             public bool Eukrasia;
+            public float ZoeLeft; // max 30
 
             public float SwiftcastLeft; // 0 if buff not up, max 10
             public float TargetDotLeft; // i am not typing that shit out. max 30
@@ -65,6 +66,39 @@ namespace BossMod.SGE
             public int NumPhlegmaTargets; // 5y around target
             public int NumPneumaTargets; // 25y/4y rect
 
+            public int NumNearbyUnshieldedAllies; // up to 8 including self
+
+            public enum GCDShieldStrategy
+            {
+                [PropertyDisplay("Manual shielding only")]
+                Manual = 0,
+
+                [PropertyDisplay("Eukrasian Prognosis")]
+                Prog = 1,
+
+                [PropertyDisplay("Zoe + Eukrasian Prognosis")]
+                ProgZoe = 2,
+
+                [PropertyDisplay(
+                    "Apply Eukrasian Prognosis once another party member's healing buff is active (Mantra, Nature's Minne, etc)"
+                )]
+                ProgPartyBuffed = 3,
+            }
+
+            public GCDShieldStrategy GCDShieldUse;
+
+            public void ApplyStrategyOverrides(uint[] overrides)
+            {
+                if (overrides.Length >= 1)
+                {
+                    GCDShieldUse = (GCDShieldStrategy)overrides[0];
+                }
+                else
+                {
+                    GCDShieldUse = GCDShieldStrategy.Manual;
+                }
+            }
+
             public override string ToString()
             {
                 return $"AOE={NumDyskrasiaTargets}/{NumToxikonTargets}, no-dots={ForbidDOTs}, movement-in={ForceMovementIn:f3}";
@@ -78,6 +112,24 @@ namespace BossMod.SGE
 
         public static AID GetNextBestGCD(State state, Strategy strategy)
         {
+            if (strategy.NumNearbyUnshieldedAllies > 0)
+            {
+                switch (strategy.GCDShieldUse)
+                {
+                    case Strategy.GCDShieldStrategy.Prog:
+                        return state.Eukrasia ? AID.EukrasianPrognosis : AID.Eukrasia;
+                    case Strategy.GCDShieldStrategy.ProgZoe:
+                        if (state.ZoeLeft > state.GCD)
+                            return state.Eukrasia ? AID.EukrasianPrognosis : AID.Eukrasia;
+                        break;
+                    case Strategy.GCDShieldStrategy.ProgPartyBuffed:
+                        // TODO: check for party buffs
+                        break;
+                    case Strategy.GCDShieldStrategy.Manual:
+                        break;
+                }
+            }
+
             var canCast = CanCast(state, strategy, 1.5f);
 
             if (strategy.NumDyskrasiaTargets > 1 && state.Unlocked(state.BestDyskrasia))
@@ -122,6 +174,13 @@ namespace BossMod.SGE
 
         public static ActionID GetNextBestOGCD(State state, Strategy strategy, float deadline)
         {
+            if (
+                strategy.GCDShieldUse == Strategy.GCDShieldStrategy.ProgZoe
+                && strategy.NumNearbyUnshieldedAllies > 0
+                && state.CanWeave(CDGroup.Zoe, 0.6f, deadline)
+            )
+                return ActionID.MakeSpell(AID.Zoe);
+
             if (
                 state.CurMP <= 7000
                 && state.Unlocked(AID.LucidDreaming)

@@ -43,13 +43,30 @@ namespace BossMod.SGE
             base.UpdateInternalState(autoAction);
             UpdatePlayerState();
             FillCommonStrategy(_strategy, CommonDefinitions.IDPotionMnd);
-            _strategy.NumDyskrasiaTargets = autoAction == AutoActionST ? 0 : Autorot.Hints.NumPriorityTargetsInAOECircle(Player.Position, 5f);
-            _strategy.NumToxikonTargets = _strategy.NumPhlegmaTargets = Autorot.PrimaryTarget == null ? 0 : Autorot.Hints.NumPriorityTargetsInAOECircle(Autorot.PrimaryTarget.Position, 5f);
+            _strategy.ApplyStrategyOverrides(Autorot.Bossmods.ActiveModule?.PlanExecution?.ActiveStrategyOverrides(Autorot.Bossmods.ActiveModule.StateMachine) ?? new uint[0]);
+            _strategy.NumDyskrasiaTargets =
+                autoAction == AutoActionST ? 0 : Autorot.Hints.NumPriorityTargetsInAOECircle(Player.Position, 5f);
+            _strategy.NumToxikonTargets = _strategy.NumPhlegmaTargets =
+                Autorot.PrimaryTarget == null
+                    ? 0
+                    : Autorot.Hints.NumPriorityTargetsInAOECircle(Autorot.PrimaryTarget.Position, 5f);
             _strategy.NumPneumaTargets = Autorot.PrimaryTarget == null ? 0 : NumPneumaTargets(Autorot.PrimaryTarget);
+
+            _strategy.NumNearbyUnshieldedAllies = Autorot
+                .WorldState.Party.WithoutSlot(partyOnly: true)
+                .InRadius(Player.Position, 15)
+                .Count(x => !HasShield(x));
         }
 
+        private static bool HasShield(Actor act) => act.Statuses.Any(s => (SID)s.ID is SID.EukrasianDiagnosis or SID.EukrasianPrognosis);
+
         private int NumPneumaTargets(Actor primary) =>
-            Autorot.Hints.NumPriorityTargetsInAOERect(Player.Position, (primary.Position - Player.Position).Normalized(), 25, 2);
+            Autorot.Hints.NumPriorityTargetsInAOERect(
+                Player.Position,
+                (primary.Position - Player.Position).Normalized(),
+                25,
+                2
+            );
 
         protected override void QueueAIActions() { }
 
@@ -64,10 +81,7 @@ namespace BossMod.SGE
 
             if (_autoRaiseTarget != null && _state.Unlocked(AID.Egeiro))
             {
-                if (
-                    _config.AutoRaise == SGEConfig.RaiseBehavior.Auto
-                    && _state.SwiftcastLeft > _state.GCD
-                )
+                if (_config.AutoRaise == SGEConfig.RaiseBehavior.Auto && _state.SwiftcastLeft > _state.GCD)
                     return MakeResult(AID.Egeiro, _autoRaiseTarget);
 
                 if (_config.AutoRaise == SGEConfig.RaiseBehavior.AutoSlow)
@@ -116,10 +130,7 @@ namespace BossMod.SGE
                 && (_state.Gall == 3 || (_state.Gall == 2 && _state.NextGall < 2.5))
                 && _state.CurMP <= 9000
             )
-                return MakeResult(
-                    ActionID.MakeSpell(AID.Druochole),
-                    FindBestSTHealTarget(1).Target ?? Player
-                );
+                return MakeResult(ActionID.MakeSpell(AID.Druochole), FindBestSTHealTarget(1).Target ?? Player);
 
             return MakeResult(ogcd, Autorot.PrimaryTarget);
         }
@@ -135,15 +146,9 @@ namespace BossMod.SGE
             _state.Eukrasia = gauge.Eukrasia;
 
             _state.SwiftcastLeft = StatusDetails(Player, SID.Swiftcast, Player.InstanceID).Left;
-            _state.TargetDotLeft = StatusDetails(
-                Autorot.PrimaryTarget,
-                _state.ExpectedEudosis,
-                Player.InstanceID
-            ).Left;
+            _state.TargetDotLeft = StatusDetails(Autorot.PrimaryTarget, _state.ExpectedEudosis, Player.InstanceID).Left;
 
-            _autoRaiseTarget = _config.AutoRaise
-                is SGEConfig.RaiseBehavior.Auto
-                    or SGEConfig.RaiseBehavior.AutoSlow
+            _autoRaiseTarget = _config.AutoRaise is SGEConfig.RaiseBehavior.Auto or SGEConfig.RaiseBehavior.AutoSlow
                 ? FindRaiseTarget()
                 : null;
             _kardiaTarget = _config.AutoKardia ? FindKardiaTarget() : null;
@@ -152,12 +157,8 @@ namespace BossMod.SGE
         private void OnConfigModified(object? sender, EventArgs args)
         {
             // placeholders
-            SupportedSpell(AID.Dosis).PlaceholderForAuto = _config.FullRotation
-                ? AutoActionST
-                : AutoActionNone;
-            SupportedSpell(AID.Dyskrasia).PlaceholderForAuto = _config.FullRotation
-                ? AutoActionAOE
-                : AutoActionNone;
+            SupportedSpell(AID.Dosis).PlaceholderForAuto = _config.FullRotation ? AutoActionST : AutoActionNone;
+            SupportedSpell(AID.Dyskrasia).PlaceholderForAuto = _config.FullRotation ? AutoActionAOE : AutoActionNone;
 
             // smart targets
             SupportedSpell(AID.Diagnosis).TransformTarget =
