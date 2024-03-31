@@ -3,18 +3,6 @@ namespace BossMod
     [ConfigDisplay(Parent = typeof(AutorotationConfig))]
     public class MNKConfig : ConfigNode
     {
-        public enum FormShiftBehavior : uint
-        {
-            [PropertyDisplay("Never")]
-            Never = 0,
-
-            [PropertyDisplay("Out of combat")]
-            OutOfCombat = 1,
-
-            [PropertyDisplay("If no targetable enemies are nearby")]
-            NoTargets = 2
-        }
-
         [PropertyDisplay("Execute optimal rotations on Bootshine (ST) or Arm of the Destroyer (AOE)")]
         public bool FullRotation = true;
 
@@ -29,8 +17,5 @@ namespace BossMod
 
         [PropertyDisplay("Delay Thunderclap if already in melee range of target")]
         public bool PreventCloseDash = true;
-
-        [PropertyDisplay("Automatic Form Shift")]
-        public FormShiftBehavior AutoFormShift = FormShiftBehavior.NoTargets;
     }
 }

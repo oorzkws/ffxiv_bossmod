@@ -57,12 +57,13 @@ namespace BossMod.MNK
         {
             UpdatePlayerState();
             FillCommonStrategy(_strategy, CommonDefinitions.IDPotionStr);
-            _strategy.ApplyStrategyOverrides(Autorot.Bossmods.ActiveModule?.PlanExecution?.ActiveStrategyOverrides(Autorot.Bossmods.ActiveModule.StateMachine) ?? new uint[0]);
             _strategy.NumBlitzTargets = NumTargetsHitByBlitz();
             _strategy.NumPointBlankAOETargets = autoAction == AutoActionST ? 0 : NumTargetsHitByPBAOE();
             _strategy.NumEnlightenmentTargets = Autorot.PrimaryTarget != null && autoAction != AutoActionST && _state.Unlocked(AID.HowlingFist) ? NumTargetsHitByEnlightenment(Autorot.PrimaryTarget) : 0;
+
             _strategy.UseAOE = _strategy.NumPointBlankAOETargets >= 3;
             _strategy.UseSTQOpener = autoAction == AutoActionSTQOpener;
+
             if (autoAction == AutoActionFiller)
             {
                 _strategy.FireUse = Rotation.Strategy.FireStrategy.Delay;
@@ -70,7 +71,10 @@ namespace BossMod.MNK
                 _strategy.BrotherhoodUse = CommonRotation.Strategy.OffensiveAbilityUse.Delay;
                 _strategy.PerfectBalanceUse = CommonRotation.Strategy.OffensiveAbilityUse.Delay;
             }
+
             FillStrategyPositionals(_strategy, Rotation.GetNextPositional(_state, _strategy), _state.TrueNorthLeft > _state.GCD);
+
+            _strategy.ApplyStrategyOverrides(Autorot.Bossmods.ActiveModule?.PlanExecution?.ActiveStrategyOverrides(Autorot.Bossmods.ActiveModule.StateMachine) ?? new uint[0]);
         }
 
         protected override void QueueAIActions()
@@ -95,7 +99,7 @@ namespace BossMod.MNK
 
         protected override NextAction CalculateAutomaticOGCD(float deadline)
         {
-            if (!Rotation.HaveTarget(_state, _strategy) || AutoAction < AutoActionAIFight)
+            if (AutoAction < AutoActionAIFight)
                 return new();
 
             ActionID res = new();
@@ -164,8 +168,6 @@ namespace BossMod.MNK
                 : null;
 
             SupportedSpell(AID.Thunderclap).TransformTarget = _config.SmartThunderclap ? (act) => Autorot.SecondaryTarget ?? act : null;
-
-            _strategy.AutoFormShift = _config.AutoFormShift;
 
             // smart targets
         }

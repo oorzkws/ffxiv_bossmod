@@ -34,8 +34,8 @@ namespace BossMod.MNK
 
             public int BeastCount => BeastChakra.Count(x => x != Dalamud.Game.ClientState.JobGauge.Enums.BeastChakra.NONE);
 
-            public bool ForcedLunar => BeastChakra[0] == Dalamud.Game.ClientState.JobGauge.Enums.BeastChakra.OPOOPO && BeastChakra[1] == Dalamud.Game.ClientState.JobGauge.Enums.BeastChakra.OPOOPO;
-            public bool ForcedSolar => BeastChakra.Any(x => x != Dalamud.Game.ClientState.JobGauge.Enums.BeastChakra.NONE && x != Dalamud.Game.ClientState.JobGauge.Enums.BeastChakra.OPOOPO);
+            public bool ForcedLunar => BeastCount > 1 && BeastChakra[0] == BeastChakra[1];
+            public bool ForcedSolar => BeastCount > 1 && BeastChakra[0] != BeastChakra[1];
 
             // upgrade paths
             public AID BestForbiddenChakra => Unlocked(AID.ForbiddenChakra) ? AID.ForbiddenChakra : AID.SteelPeak;
@@ -84,9 +84,17 @@ namespace BossMod.MNK
 
             public bool UseAOE;
 
-            public MNKConfig.FormShiftBehavior AutoFormShift;
-
             public bool UseSTQOpener;
+
+            public enum FormShiftStrategy : uint
+            {
+                [PropertyDisplay("Use if there are no targets in range")]
+                Automatic = 0,
+                [PropertyDisplay("Do not use")]
+                Delay = 1
+            }
+
+            public FormShiftStrategy FormShiftUse;
 
             public enum DashStrategy : uint
             {
@@ -105,12 +113,14 @@ namespace BossMod.MNK
             public enum NadiChoice : uint
             {
                 Automatic = 0, // lunar -> solar
-
                 [PropertyDisplay("Lunar", 0xFFDB8BCA)]
                 Lunar = 1,
-
                 [PropertyDisplay("Solar", 0xFF8EE6FA)]
-                Solar = 2
+                Solar = 2,
+                [PropertyDisplay("Lunar (downtime)", 0xA0DB8BCA)]
+                LunarDowntime = 3,
+                [PropertyDisplay("Solar (downtime)", 0xA08EE6FA)]
+                SolarDowntime = 4
             }
 
             public NadiChoice NextNadi;
@@ -123,10 +133,10 @@ namespace BossMod.MNK
                 [PropertyDisplay("Raptor", 0xFF38D17B)]
                 Raptor = 2,
                 [PropertyDisplay("Coeurl", 0xFFA264D7)]
-                Coeurl = 3
+                Coeurl = 3,
             }
 
-            public FormChoice OpenerForm;
+            public FormChoice FormShiftForm;
 
             public enum FireStrategy : uint
             {
@@ -152,12 +162,38 @@ namespace BossMod.MNK
             }
 
             public FireStrategy FireUse;
+
+            public enum BlitzStrategy : uint {
+                // use when available
+                Automatic = 0,
+                [PropertyDisplay("Delay")]
+                Delay = 1,
+                [PropertyDisplay("Delay until Riddle of Fire is active")]
+                DelayUntilBuffs = 2,
+                [PropertyDisplay("Delay until at least two targets are in range")]
+                DelayUntilMultiTarget = 3
+            }
+            public BlitzStrategy BlitzUse;
+
+            public enum DragonKickStrategy {
+                // standard rotation, use in opo-opo form to proc leaden fist
+                Automatic = 0,
+                [PropertyDisplay("Replace all GCDs, unless it would allow Disciplined Fist to expire")]
+                Filler = 1,
+                [PropertyDisplay("Replace all GCDs")]
+                FillHarder = 2,
+            }
+
             public OffensiveAbilityUse WindUse;
             public OffensiveAbilityUse BrotherhoodUse;
             public OffensiveAbilityUse PerfectBalanceUse;
+            public FormChoice PerfectBalanceForm;
             public OffensiveAbilityUse SSSUse;
             public OffensiveAbilityUse TrueNorthUse;
+            public OffensiveAbilityUse DisciplinedFistUse;
             public OffensiveAbilityUse DemolishUse;
+            public DragonKickStrategy DragonKickUse;
+            public OffensiveAbilityUse PotionUse;
 
             public float ActualFightEndIn => FightEndIn == 0 ? 10000f : FightEndIn;
 
@@ -168,31 +204,43 @@ namespace BossMod.MNK
 
             public void ApplyStrategyOverrides(uint[] overrides)
             {
-                if (overrides.Length >= 10)
+                if (overrides.Length >= 16)
                 {
                     DashUse = (DashStrategy)overrides[0];
                     TrueNorthUse = (OffensiveAbilityUse)overrides[1];
-                    NextNadi = (NadiChoice)overrides[2];
-                    FireUse = (FireStrategy)overrides[3];
-                    WindUse = (OffensiveAbilityUse)overrides[4];
-                    BrotherhoodUse = (OffensiveAbilityUse)overrides[5];
-                    PerfectBalanceUse = (OffensiveAbilityUse)overrides[6];
-                    SSSUse = (OffensiveAbilityUse)overrides[7];
-                    OpenerForm = (FormChoice)overrides[8];
-                    DemolishUse = (OffensiveAbilityUse)overrides[9];
+                    DisciplinedFistUse = (OffensiveAbilityUse)overrides[2];
+                    DemolishUse = (OffensiveAbilityUse)overrides[3];
+                    NextNadi = (NadiChoice)overrides[4];
+                    FireUse = (FireStrategy)overrides[5];
+                    WindUse = (OffensiveAbilityUse)overrides[6];
+                    BrotherhoodUse = (OffensiveAbilityUse)overrides[7];
+                    PerfectBalanceUse = (OffensiveAbilityUse)overrides[8];
+                    PerfectBalanceForm = (FormChoice)overrides[9];
+                    FormShiftUse = (FormShiftStrategy)overrides[10];
+                    FormShiftForm = (FormChoice)overrides[11];
+                    BlitzUse = (BlitzStrategy)overrides[12];
+                    DragonKickUse = (DragonKickStrategy)overrides[13];
+                    SSSUse = (OffensiveAbilityUse)overrides[14];
+                    PotionUse = (OffensiveAbilityUse)overrides[15];
                 }
                 else
                 {
                     DashUse = DashStrategy.Automatic;
                     TrueNorthUse = OffensiveAbilityUse.Automatic;
+                    DisciplinedFistUse = OffensiveAbilityUse.Automatic;
+                    DemolishUse = OffensiveAbilityUse.Automatic;
                     NextNadi = NadiChoice.Automatic;
                     FireUse = FireStrategy.Automatic;
                     WindUse = OffensiveAbilityUse.Automatic;
                     BrotherhoodUse = OffensiveAbilityUse.Automatic;
                     PerfectBalanceUse = OffensiveAbilityUse.Automatic;
+                    PerfectBalanceForm = FormChoice.Automatic;
+                    FormShiftUse = FormShiftStrategy.Automatic;
+                    FormShiftForm = FormChoice.Automatic;
+                    BlitzUse = BlitzStrategy.Automatic;
+                    DragonKickUse = DragonKickStrategy.Automatic;
                     SSSUse = OffensiveAbilityUse.Automatic;
-                    OpenerForm = FormChoice.Automatic;
-                    DemolishUse = OffensiveAbilityUse.Automatic;
+                    PotionUse = OffensiveAbilityUse.Automatic;
                 }
             }
         }
@@ -231,11 +279,11 @@ namespace BossMod.MNK
             if (rofIsAligned && NeedDemolishRefresh(state, strategy, 4))
                 return AID.TwinSnakes;
 
-            if (state.FireLeft >= state.GCD + state.AttackGCDTime * 3 && !state.HaveLunar && WillDFExpire(state, 5))
+            if (state.FireLeft >= state.GCD + state.AttackGCDTime * 3 && !state.HaveLunar && NeedDFRefresh(state, strategy, 5))
                 return AID.TwinSnakes;
 
             // normal refresh
-            if (WillDFExpire(state, 3))
+            if (NeedDFRefresh(state, strategy, 3))
                 return AID.TwinSnakes;
 
             return AID.TrueStrike;
@@ -276,7 +324,7 @@ namespace BossMod.MNK
                     return AID.Meditation;
 
                 if (
-                    strategy.AutoFormShift == MNKConfig.FormShiftBehavior.OutOfCombat
+                    strategy.FormShiftUse == Strategy.FormShiftStrategy.Automatic
                     && state.FormShiftLeft < 3
                     && state.Unlocked(AID.FormShift)
                 )
@@ -286,7 +334,7 @@ namespace BossMod.MNK
                 {
                     // form shift on countdown. TODO: ignore Never here? don't think there's ever any reason not to use it on countdown
                     if (
-                        strategy.AutoFormShift != MNKConfig.FormShiftBehavior.Never
+                        strategy.FormShiftUse != Strategy.FormShiftStrategy.Automatic
                         && state.FormShiftLeft + strategy.CombatTimer < 3
                         && state.Unlocked(AID.FormShift)
                     )
@@ -301,11 +349,22 @@ namespace BossMod.MNK
                 if (state.Chakra < 5 && state.Unlocked(AID.Meditation))
                     return AID.Meditation;
 
-                if (strategy.AutoFormShift == MNKConfig.FormShiftBehavior.NoTargets && state.CanFormShift && state.FormShiftLeft < 3)
+                if (strategy.FormShiftUse == Strategy.FormShiftStrategy.Automatic && state.CanFormShift && state.FormShiftLeft < 3)
                     return AID.FormShift;
+
+                // switch (strategy.NextNadi) {
+                //     case Strategy.NadiChoice.LunarDowntime:
+                //         if (state.BeastCount == 3)
+                //             break;
+                //         if (state.BeastCount == 0)
+                //             return AID.ShadowOfTheDestroyer;
+                // }
 
                 return AID.None;
             }
+
+            if (state.RangeToTarget > 3 && strategy.DashUse == Strategy.DashStrategy.GapClose && state.CD(CDGroup.Thunderclap) <= 60 && state.Unlocked(AID.Thunderclap))
+                return AID.Thunderclap;
 
             if (state.Unlocked(AID.SixSidedStar) && strategy.SSSUse == Strategy.OffensiveAbilityUse.Force)
                 return AID.SixSidedStar;
@@ -313,8 +372,15 @@ namespace BossMod.MNK
             if (strategy.UseSTQOpener && state.LostExcellenceLeft > 0 && state.FoPLeft == 0)
                 return AID.SixSidedStar;
 
-            if (state.BestBlitz != AID.MasterfulBlitz && strategy.NumBlitzTargets > 0)
+            if (state.BestBlitz != AID.MasterfulBlitz && strategy.NumBlitzTargets > 0 && ShouldBlitz(state, strategy)) {
+                if (state.DisciplinedFistLeft <= state.GCD)
+                    return AID.TwinSnakes;
+
                 return state.BestBlitz;
+            }
+
+            if (state.Unlocked(AID.DragonKick) && ShouldDKSpam(state, strategy))
+                return AID.DragonKick;
 
             // TODO: calculate optimal DK spam before SSS
             if (
@@ -370,10 +436,13 @@ namespace BossMod.MNK
                 )
                     return ActionID.MakeSpell(AID.Thunderclap);
 
+                if (strategy.PotionUse == CommonRotation.Strategy.OffensiveAbilityUse.Force && state.CanWeave(state.PotionCD, 1.1f, float.MaxValue))
+                    return CommonDefinitions.IDPotionStr;
+
                 return new();
             }
 
-            if (strategy.UseSTQOpener)
+            if (strategy.UseSTQOpener && HaveTarget(state, strategy))
             {
                 var hsac = BozjaActionID.GetNormal(BozjaHolsterID.BannerHonoredSacrifice);
                 var fop = BozjaActionID.GetNormal(BozjaHolsterID.LostFontOfPower);
@@ -418,6 +487,9 @@ namespace BossMod.MNK
                     return ActionID.MakeSpell(AID.RiddleOfFire);
             }
 
+            if (strategy.PotionUse == CommonRotation.Strategy.OffensiveAbilityUse.Force && state.CanWeave(state.PotionCD, 1.1f, deadline))
+                return CommonDefinitions.IDPotionStr;
+
             if (ShouldUsePB(state, strategy, deadline))
                 return ActionID.MakeSpell(AID.PerfectBalance);
 
@@ -458,7 +530,7 @@ namespace BossMod.MNK
             if (ShouldUseTrueNorth(state, strategy, finalOGCDDeadline) && state.CanWeave(state.CD(CDGroup.TrueNorth) - 45, 0.6f, deadline))
                 return ActionID.MakeSpell(AID.TrueNorth);
 
-            if (ShouldDash(state, strategy, deadline))
+            if (ShouldDash(state, strategy))
                 return ActionID.MakeSpell(AID.Thunderclap);
 
             // no suitable oGCDs...
@@ -469,19 +541,42 @@ namespace BossMod.MNK
         {
             if (state.PerfectBalanceLeft > state.GCD)
             {
-                var nextNadi = strategy.NextNadi;
-                // if a blitz is already in progress, finish it even if buffs would fall off in the process, since celestial revolution is always a mistake
-                var forcedLunar = nextNadi == Strategy.NadiChoice.Lunar || state.ForcedLunar;
-                var forcedSolar = nextNadi == Strategy.NadiChoice.Solar || state.ForcedSolar;
-                var canCoeurl = !forcedLunar;
-                var canRaptor = !forcedLunar;
-                // slightly annoying conditional because this is always true in lunar, but only true in solar if we haven't used it yet, just like the others
-                var canOpo = !state.ForcedSolar || state.BeastChakra.All(b => b != BeastChakra.OPOOPO);
+                if (state.BeastCount == 0) {
+                    switch (strategy.PerfectBalanceForm) {
+                        case Strategy.FormChoice.Opo:
+                            return Form.OpoOpo;
+                        case Strategy.FormChoice.Coeurl:
+                            return Form.Coeurl;
+                        case Strategy.FormChoice.Raptor:
+                            return Form.Raptor;
+                        default:
+                            break;
+                    }
+                }
 
-                foreach (var chak in state.BeastChakra)
-                {
-                    canCoeurl &= chak != BeastChakra.COEURL;
-                    canRaptor &= chak != BeastChakra.RAPTOR;
+                bool canCoeurl, canRaptor, canOpo, forcedSolar;
+
+                if (state.BeastCount >= 3) {
+                    // in most cases this function isn't even called if we have 3 beast chakra, since we use blitz immediately;
+                    // but there are fight-specific optimizations that involve using PB early then holding blitz for RoF cooldown;
+                    // in these cases we just treat it like form shift
+                    canCoeurl = canRaptor = canOpo = true;
+                    forcedSolar = false;
+                } else {
+                    var nextNadi = strategy.NextNadi;
+                    // if a blitz is already in progress, finish it even if buffs would fall off in the process, since celestial revolution is always a mistake
+                    var forcedLunar = nextNadi == Strategy.NadiChoice.Lunar || state.ForcedLunar;
+                    forcedSolar = nextNadi == Strategy.NadiChoice.Solar || state.ForcedSolar;
+                    canCoeurl = !forcedLunar;
+                    canRaptor = !forcedLunar;
+                    // slightly annoying conditional because this is always true in lunar, but only true in solar if we haven't used it yet, just like the others
+                    canOpo = !state.ForcedSolar || state.BeastChakra.All(b => b != BeastChakra.OPOOPO);
+
+                    foreach (var chak in state.BeastChakra)
+                    {
+                        canCoeurl &= chak != BeastChakra.COEURL;
+                        canRaptor &= chak != BeastChakra.RAPTOR;
+                    }
                 }
 
                 // big pile of conditionals to check whether this is a forced solar (buffs are running out).
@@ -494,7 +589,7 @@ namespace BossMod.MNK
                         return Form.Raptor;
                     if (NeedDemolishRefresh(state, strategy, 2))
                         return Form.Coeurl;
-                    if (WillDFExpire(state, 2))
+                    if (NeedDFRefresh(state, strategy, 2))
                         return Form.Raptor;
                 }
                 else if (canCoeurl)
@@ -506,9 +601,9 @@ namespace BossMod.MNK
                 }
                 else if (canRaptor)
                 {
-                    if (state.BeastCount == 1 && WillDFExpire(state, 1))
+                    if (state.BeastCount == 1 && NeedDFRefresh(state, strategy, 1))
                         return Form.Raptor;
-                    else if (state.BeastCount == 2 && WillDFExpire(state, 4))
+                    else if (state.BeastCount == 2 && NeedDFRefresh(state, strategy, 4))
                         return Form.Raptor;
                 }
 
@@ -529,12 +624,15 @@ namespace BossMod.MNK
             }
 
             if (state.FormShiftLeft > state.GCD) {
-                if (strategy.OpenerForm != Strategy.FormChoice.Automatic) {
-                return strategy.OpenerForm == Strategy.FormChoice.Coeurl
-                    ? Form.Coeurl
-                    : strategy.OpenerForm == Strategy.FormChoice.Raptor
-                        ? Form.Raptor
-                        : Form.OpoOpo; 
+                switch (strategy.FormShiftForm) {
+                    case Strategy.FormChoice.Automatic:
+                        break;
+                    case Strategy.FormChoice.Coeurl:
+                        return Form.Coeurl;
+                    case Strategy.FormChoice.Raptor:
+                        return Form.Raptor;
+                    default:
+                        return Form.OpoOpo;
                 }
 
                 if (NeedDemolishRefresh(state, strategy, 2) && state.DisciplinedFistLeft > state.GCD)
@@ -546,28 +644,33 @@ namespace BossMod.MNK
             return state.Form;
         }
 
-        private static bool ShouldDash(State state, Strategy strategy, float deadline)
+        private static bool ShouldBlitz(State state, Strategy strategy) =>
+             strategy.BlitzUse switch {
+                Strategy.BlitzStrategy.Delay => false,
+                Strategy.BlitzStrategy.DelayUntilBuffs => state.FireLeft > state.GCD,
+                Strategy.BlitzStrategy.DelayUntilMultiTarget => strategy.NumBlitzTargets > 1,
+                _ => true,
+            };
+
+        private static bool ShouldDKSpam(State state, Strategy strategy) => strategy.DragonKickUse switch
         {
-            if (
-                state.RangeToTarget <= 3
-                || !state.Unlocked(AID.Thunderclap)
-                || !state.CanWeave(state.CD(CDGroup.Thunderclap) - 60, 0.6f, deadline)
-                || strategy.DashUse == Strategy.DashStrategy.Forbid
-            )
+            Strategy.DragonKickStrategy.Filler => state.DisciplinedFistLeft > state.GCD,
+            Strategy.DragonKickStrategy.FillHarder => true,
+            _ => false,
+        };
+
+        private static bool ShouldDash(State state, Strategy strategy)
+        {
+            if (!state.Unlocked(AID.Thunderclap) || state.CD(CDGroup.Thunderclap) > 60)
                 return false;
 
-            if (strategy.DashUse == Strategy.DashStrategy.GapClose)
-                return true;
-
-            // someone early pulled
-            if (
-                strategy.DashUse == Strategy.DashStrategy.Automatic
-                && strategy.CombatTimer > 0
-                && strategy.CombatTimer < 3
-            )
-                return true;
-
-            return false;
+            return strategy.DashUse switch
+            {
+                Strategy.DashStrategy.Automatic => strategy.CombatTimer > 0 && strategy.CombatTimer < 1 && state.RangeToTarget > 3,
+                Strategy.DashStrategy.Forbid => false,
+                Strategy.DashStrategy.GapClose => state.RangeToTarget > 3,
+                _ => false,
+            };
         }
 
         private static bool ShouldUseRoF(State state, Strategy strategy, float deadline)
@@ -582,7 +685,7 @@ namespace BossMod.MNK
             if (strategy.FireUse == Strategy.FireStrategy.Force)
                 return true;
 
-            if (strategy.ActualFightEndIn < 20)
+            if (!HaveTarget(state, strategy) || strategy.ActualFightEndIn < 20)
                 return false;
 
             // prevent early use in standard opener
@@ -601,7 +704,7 @@ namespace BossMod.MNK
             if (strategy.WindUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
 
-            if (strategy.ActualFightEndIn < 15)
+            if (!HaveTarget(state, strategy) || strategy.ActualFightEndIn < 15)
                 return false;
 
             // thebalance recommends using RoW like an oGCD dot, so we use on cooldown as long as buffs have been used first
@@ -620,7 +723,7 @@ namespace BossMod.MNK
             if (strategy.BrotherhoodUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
 
-            if (strategy.ActualFightEndIn < 15)
+            if (!HaveTarget(state, strategy) || strategy.ActualFightEndIn < 15)
                 return false;
 
             return !strategy.UseAOE
@@ -647,14 +750,14 @@ namespace BossMod.MNK
             if (strategy.PerfectBalanceUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
 
-            if (strategy.ActualFightEndIn < state.GCD + state.AttackGCDTime * 3)
+            if (!HaveTarget(state, strategy) || strategy.ActualFightEndIn < state.GCD + state.AttackGCDTime * 3)
                 return false;
 
             // with enough haste/low enough GCD (< 1.6, currently exclusive to bozja), double lunar is possible without dropping buffs
             // via lunar -> opo -> snakes -> pb -> lunar
             // this is the only time PB use is not directly after an opo GCD
             if (state.Form == Form.Coeurl && state.FireLeft > deadline + state.AttackGCDTime * 3)
-                return !WillDFExpire(state, 5) && !NeedDemolishRefresh(state, strategy, 3);
+                return !NeedDFRefresh(state, strategy, 5) && !NeedDemolishRefresh(state, strategy, 3);
 
             if (state.Form != Form.Raptor)
                 return false;
@@ -666,10 +769,10 @@ namespace BossMod.MNK
             if (ShouldUseRoF(state, strategy, deadline) || state.FireLeft > deadline + state.AttackGCDTime * 3 || !state.Unlocked(AID.RiddleOfFire))
             {
                 if (!CanSolar(state, strategy))
-                    return !WillDFExpire(state, 5) && !NeedDemolishRefresh(state, strategy, 6);
+                    return !NeedDFRefresh(state, strategy, 5) && !NeedDemolishRefresh(state, strategy, 6);
 
                 // see haste note above; delay standard even window PB2 in favor of double lunar
-                if (WillDFExpire(state, 3) && !NeedDemolishRefresh(state, strategy, 5))
+                if (NeedDFRefresh(state, strategy, 3) && !NeedDemolishRefresh(state, strategy, 5))
                     return false;
 
                 return true;
@@ -701,6 +804,8 @@ namespace BossMod.MNK
                 return false;
             if (strategy.TrueNorthUse == Strategy.OffensiveAbilityUse.Force)
                 return true;
+            if (!HaveTarget(state, strategy))
+                return false;
 
             var positionalIsWrong = strategy.NextPositionalImminent && !strategy.NextPositionalCorrect;
 
@@ -734,8 +839,15 @@ namespace BossMod.MNK
             return false;
         }
 
-        private static bool WillDFExpire(State state, int gcds) =>
-            WillStatusExpire(state, gcds, state.DisciplinedFistLeft);
+        private static bool NeedDFRefresh(State state, Strategy strategy, int gcds) {
+            if (strategy.DisciplinedFistUse == CommonRotation.Strategy.OffensiveAbilityUse.Force)
+                return true;
+
+            if (strategy.DisciplinedFistUse == CommonRotation.Strategy.OffensiveAbilityUse.Delay)
+                return false;
+
+            return WillStatusExpire(state, gcds, state.DisciplinedFistLeft);
+        }
 
         private static bool WillStatusExpire(State state, int gcds, float statusDuration) =>
             statusDuration < state.GCD + (state.AttackGCDTime * gcds);
@@ -746,5 +858,22 @@ namespace BossMod.MNK
             Strategy.NadiChoice.Lunar => false,
             _ => !state.HaveSolar
         };
+
+        struct FormOptions {
+            public bool Opo;
+            public bool Raptor;
+            public bool Coeurl;
+        }
+
+        // private static FormOptions GetFormOptions(State state, Strategy strategy)
+        // {
+        //     if (state.BeastCount >= 3) {
+        //         return new FormOptions {
+        //             Opo = true,
+        //             Raptor = true,
+        //             Coeurl = true
+        //         };
+        //     }
+        // }
     }
 }
